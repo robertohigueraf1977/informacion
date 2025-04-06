@@ -1,0 +1,222 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum UserRole {
+  SUPER_USER
+  ADMIN
+  EDITOR
+  USER
+}
+
+model User {
+  id              String    @id @default(cuid())
+  name            String?
+  username        String    @unique
+  email           String?   @unique
+  emailVerified   DateTime?
+  password        String
+  image           String?
+  role            UserRole  @default(USER)
+  mfaEnabled      Boolean   @default(false)
+  mfaSecret       String?
+  municipioId     Int?
+  distritoLocalId Int?
+  distritoFederalId Int?
+  tareas          Tarea[]   @relation("CreadorTarea")
+  municipio       Municipio? @relation(fields: [municipioId], references: [id], onDelete: SetNull)
+  distritoLocal   DistritoLocal? @relation(fields: [distritoLocalId], references: [id])
+  distritoFederal DistritoFederal? @relation(fields: [distritoFederalId], references: [id])
+}
+
+model DistritoLocal {
+  id        Int       @id @default(autoincrement())
+  nombre    String?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  secciones Seccion[]
+  usuarios  User[]
+}
+
+model DistritoFederal {
+  id        Int       @id @default(autoincrement())
+  nombre    String?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  secciones Seccion[]
+  usuarios  User[]
+}
+
+model Municipio {
+  id        Int       @id @default(autoincrement())
+  nombre    String   @unique
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  secciones Seccion[]
+  domicilios Domicilio[]
+  usuarios  User[]
+  
+}
+
+model Seccion {
+  id               Int       @id @default(autoincrement())
+  nombre           String
+  municipioId      Int
+  distritoLocalId  Int
+  distritoFederalId Int
+  createdAt        DateTime @default(now())
+  updatedAt        DateTime @updatedAt
+  municipio        Municipio @relation(fields: [municipioId], references: [id])
+  distritoLocal    DistritoLocal @relation(fields: [distritoLocalId], references: [id])
+  distritoFederal  DistritoFederal @relation(fields: [distritoFederalId], references: [id])
+  personas         Persona[]
+  domicilios       Domicilio[]
+  casillas         Casilla[]
+
+  @@index([nombre], name: "idx_seccion_nombre")
+  @@index([nombre, distritoLocalId, distritoFederalId], name: "idx_seccion_nombre_distritos")
+  @@index([municipioId])
+  @@index([distritoLocalId])
+  @@index([distritoFederalId])
+  @@index([createdAt])
+  @@index([updatedAt])
+}
+
+model Sector {
+  id          Int       @id @default(autoincrement())
+  nombre      String
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  personas    Persona[]
+
+  @@index([nombre])
+  @@index([createdAt])
+  @@index([updatedAt])
+}
+
+model Persona {
+  id               Int       @id @default(autoincrement())
+  nombre           String
+  apellidoPaterno  String
+  apellidoMaterno  String?
+  fechaNacimiento  DateTime?
+  curp             String?  @unique
+  claveElector     String?  @unique
+  seccionId        Int?
+  telefono         String?
+  email            String?
+  sectorId         Int?
+  referente        Boolean  @default(false)
+  referidoPorId    Int?
+  createdAt        DateTime @default(now())
+  updatedAt        DateTime @updatedAt
+  seccion          Seccion? @relation(fields: [seccionId], references: [id])
+  sector           Sector? @relation(fields: [sectorId], references: [id])
+  domicilio        Domicilio? 
+  tareas           Tarea[]
+  referidoPor      Persona? @relation("PersonaReferidos", fields: [referidoPorId], references: [id], onDelete: SetNull)
+  referidos        Persona[] @relation("PersonaReferidos")
+
+  @@index([nombre])
+  @@index([apellidoPaterno])
+  @@index([apellidoMaterno])
+  @@index([email])
+  @@index([telefono])
+  @@index([seccionId])
+  @@index([sectorId])
+  @@index([referidoPorId])
+  @@index([createdAt])
+  @@index([updatedAt])
+  @@index([nombre, apellidoPaterno, apellidoMaterno], name: "idx_persona_nombre_completo")
+  @@index([referente])
+  @@index([nombre, referente], name: "idx_persona_nombre_referente")
+  @@index([seccionId, referente], name: "idx_persona_seccion_referente")
+  @@index([nombre, apellidoPaterno, apellidoMaterno, referente], name: "idx_persona_nombre_completo_referente")
+  
+}
+
+model Domicilio {
+  id          Int       @id @default(autoincrement())
+  calle       String
+  numero      String?
+  colonia     String?
+  localidad   String?
+  codigoPostal String?
+  referencias String?
+  latitud     Float?
+  longitud    Float?
+  personaId   Int       @unique
+  seccionId   Int?
+  municipioId Int?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  persona     Persona  @relation(fields: [personaId], references: [id])
+  seccion     Seccion? @relation(fields: [seccionId], references: [id])
+  municipio   Municipio? @relation(fields: [municipioId], references: [id])
+
+  @@index([personaId])
+  @@index([seccionId])
+  @@index([municipioId])
+  @@index([colonia])
+  @@index([localidad])
+  @@index([createdAt])
+  @@index([updatedAt])
+}
+
+model Casilla {
+  id          Int       @id @default(autoincrement())
+  tipo        String
+  numero      Int
+  ubicacion   String?
+  direccion   String?
+  latitud     Float?
+  longitud    Float?
+  seccionId   Int
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  seccion     Seccion  @relation(fields: [seccionId], references: [id])
+  votos       Voto[]
+}
+
+model Voto {
+  id          Int       @id @default(autoincrement())
+  candidato   String
+  partido     String?
+  cantidad    Int
+  casillaTipo String
+  casillaNumero Int
+  casillaId   Int
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  casilla     Casilla  @relation(fields: [casillaId], references: [id], onDelete: Cascade)
+}
+
+model Tarea {
+  id          Int       @id @default(autoincrement())
+  titulo      String
+  descripcion String?
+  fecha       DateTime
+  completada  Boolean  @default(false)
+  personaId   Int?
+  creadorId   String?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  persona     Persona? @relation(fields: [personaId], references: [id])
+  creador     User?    @relation("CreadorTarea", fields: [creadorId], references: [id])
+
+  @@index([personaId])
+  @@index([creadorId])
+  @@index([fecha])
+  @@index([completada])
+  @@index([createdAt])
+  @@index([updatedAt])
+}
+
