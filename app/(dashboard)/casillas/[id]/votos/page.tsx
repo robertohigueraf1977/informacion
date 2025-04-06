@@ -29,7 +29,7 @@ export default async function CasillaVotosPage({
     where: { id: casillaId },
     select: {
       id: true,
-      nombre: true,
+      numero: true,
       seccion: {
         select: {
           nombre: true,
@@ -58,7 +58,7 @@ export default async function CasillaVotosPage({
       casilla: {
         select: {
           id: true,
-          nombre: true,
+          numero: true,
           seccion: {
             select: {
               nombre: true,
@@ -111,10 +111,10 @@ export default async function CasillaVotosPage({
             </Link>
           </Button>
           <h1 className="text-3xl font-bold">
-            Votos de la Casilla: {casilla.nombre} - {casilla.seccion?.nombre}
+            Votos de la Casilla: {casilla.numero} - {casilla.seccion?.nombre}
           </h1>
           <p className="text-muted-foreground">
-            Gestiona los votos registrados para la casilla {casilla.nombre} en{" "}
+            Gestiona los votos registrados para la casilla {casilla.numero} en{" "}
             {casilla.seccion?.municipio.nombre}
           </p>
         </div>

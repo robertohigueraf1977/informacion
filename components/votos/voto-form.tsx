@@ -35,7 +35,7 @@ type Voto = {
 
 type Casilla = {
   id: number;
-  nombre: string;
+  numero: string;
   seccion: {
     nombre: string;
     municipio: {

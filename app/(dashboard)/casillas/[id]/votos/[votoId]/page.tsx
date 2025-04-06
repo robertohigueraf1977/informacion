@@ -59,7 +59,7 @@ export default async function EditarVotoCasillaPage({
   const casillas = await db.casilla.findMany({
     select: {
       id: true,
-      nombre: true,
+      numero: true,
       seccion: {
         select: {
           nombre: true,
@@ -78,7 +78,7 @@ export default async function EditarVotoCasillaPage({
         },
       },
       {
-        nombre: "asc",
+        numero: "asc",
       },
     ],
   });

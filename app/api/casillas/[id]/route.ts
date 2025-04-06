@@ -65,9 +65,9 @@ export async function PUT(
 
     const id = Number.parseInt(params.id);
     const body = await req.json();
-    const { nombre, tipo, seccionId, direccion, latitud, longitud } = body;
+    const { numero, tipo, seccionId, direccion, latitud, longitud } = body;
 
-    if (!nombre || !tipo || !seccionId) {
+    if (!numero || !tipo || !seccionId) {
       return NextResponse.json(
         { error: "Faltan campos requeridos" },
         { status: 400 }

@@ -37,7 +37,7 @@ export default async function CrearVotoCasillaPage({
   const casillas = await db.casilla.findMany({
     select: {
       id: true,
-      nombre: true,
+      numero: true,
       seccion: {
         select: {
           nombre: true,
@@ -56,7 +56,7 @@ export default async function CrearVotoCasillaPage({
         },
       },
       {
-        nombre: "asc",
+        numero: "asc",
       },
     ],
   });
