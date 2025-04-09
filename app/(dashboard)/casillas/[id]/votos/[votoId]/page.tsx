@@ -1,28 +1,26 @@
-import { getServerSession } from "next-auth/next";
-import { authOptions } from "@/auth";
-import { redirect, notFound } from "next/navigation";
-import { db } from "@/lib/db";
-import { VotoForm } from "@/components/votos/voto-form";
-import { EliminarVotoButton } from "@/components/votos/eliminar-voto-button";
+import { getServerSession } from "next-auth/next"
+import { authOptions } from "@/auth"
+import { redirect, notFound } from "next/navigation"
+import { db } from "@/lib/db"
+import { VotoForm } from "@/components/votos/voto-form"
+import { EliminarVotoButton } from "@/components/votos/eliminar-voto-button"
 
 interface EditarVotoCasillaPageProps {
   params: {
-    id: string;
-    votoId: string;
-  };
+    id: string
+    votoId: string
+  }
 }
 
-export default async function EditarVotoCasillaPage({
-  params,
-}: EditarVotoCasillaPageProps) {
-  const session = await getServerSession(authOptions);
+export default async function EditarVotoCasillaPage({ params }: EditarVotoCasillaPageProps) {
+  const session = await getServerSession(authOptions)
 
   if (!session?.user) {
-    redirect("/auth/login");
+    redirect("/auth/login")
   }
 
-  const casillaId = Number.parseInt(params.id);
-  const votoId = Number.parseInt(params.votoId);
+  const casillaId = Number.parseInt(params.id)
+  const votoId = Number.parseInt(params.votoId)
 
   // Verificar si la casilla existe
   const casilla = await db.casilla.findUnique({
@@ -30,10 +28,10 @@ export default async function EditarVotoCasillaPage({
     select: {
       id: true,
     },
-  });
+  })
 
   if (!casilla) {
-    notFound();
+    notFound()
   }
 
   // Verificar si el voto existe y pertenece a la casilla
@@ -46,16 +44,15 @@ export default async function EditarVotoCasillaPage({
       id: true,
       cantidad: true,
       casillaId: true,
-      candidatoId: true,
       partidoId: true,
     },
-  });
+  })
 
   if (!voto) {
-    notFound();
+    notFound()
   }
 
-  // Obtener casillas, candidatos y partidos para el formulario
+  // Obtener casillas y partidos para el formulario
   const casillas = await db.casilla.findMany({
     select: {
       id: true,
@@ -81,18 +78,7 @@ export default async function EditarVotoCasillaPage({
         numero: "asc",
       },
     ],
-  });
-
-  const candidatos = await db.candidato.findMany({
-    select: {
-      id: true,
-      nombre: true,
-      cargo: true,
-    },
-    orderBy: {
-      nombre: "asc",
-    },
-  });
+  })
 
   const partidos = await db.partido.findMany({
     select: {
@@ -101,29 +87,22 @@ export default async function EditarVotoCasillaPage({
       siglas: true,
     },
     orderBy: {
-      siglas: "asc",
+      nombre: "asc",
     },
-  });
+  })
 
   return (
     <div className="space-y-6">
       <div className="flex justify-between items-center">
         <div>
           <h1 className="text-3xl font-bold">Editar Voto</h1>
-          <p className="text-muted-foreground">
-            Modifica los datos del voto para esta casilla
-          </p>
+          <p className="text-muted-foreground">Modifica los datos del voto para esta casilla</p>
         </div>
         <EliminarVotoButton id={voto.id} casillaId={casillaId} />
       </div>
 
-      <VotoForm
-        voto={voto}
-        casillas={casillas}
-        candidatos={candidatos}
-        partidos={partidos}
-        casillaId={casillaId}
-      />
+      <VotoForm voto={voto} casillas={casillas} partidos={partidos} casillaId={casillaId} />
     </div>
-  );
+  )
 }
+

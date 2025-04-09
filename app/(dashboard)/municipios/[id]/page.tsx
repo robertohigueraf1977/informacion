@@ -27,8 +27,6 @@ export default async function EditarMunicipioPage({
     select: {
       id: true,
       nombre: true,
-      estado: true,
-      codigoINE: true,
     },
   });
 

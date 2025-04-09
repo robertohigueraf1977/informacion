@@ -1,108 +1,75 @@
-"use client";
+"use client"
 
-import { useState } from "react";
-import { useForm } from "react-hook-form";
-import { zodResolver } from "@hookform/resolvers/zod";
-import * as z from "zod";
-import { useRouter } from "next/navigation";
-import { useToast } from "@/hooks/use-toast";
-import { Button } from "@/components/ui/button";
-import {
-  Form,
-  FormControl,
-  FormField,
-  FormItem,
-  FormLabel,
-  FormMessage,
-} from "@/components/ui/form";
-import { Input } from "@/components/ui/input";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
-import { Card, CardContent } from "@/components/ui/card";
+import { useState } from "react"
+import { useForm } from "react-hook-form"
+import { zodResolver } from "@hookform/resolvers/zod"
+import * as z from "zod"
+import { useRouter } from "next/navigation"
+import { useToast } from "@/hooks/use-toast"
+import { Button } from "@/components/ui/button"
+import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form"
+import { Input } from "@/components/ui/input"
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
+import { Card, CardContent } from "@/components/ui/card"
 
 type Voto = {
-  id: number;
-  casillaId: number;
-  candidatoId: number | null;
-  partidoId: number | null;
-  cantidad: number;
-};
+  id: number
+  casillaId: number
+  partidoId: number | null
+  cantidad: number
+}
 
 type Casilla = {
-  id: number;
-  numero: string;
+  id: number
+  numero: string
   seccion: {
-    nombre: string;
+    nombre: string
     municipio: {
-      nombre: string;
-    };
-  } | null;
-};
-
-type Candidato = {
-  id: number;
-  nombre: string;
-  cargo: string;
-};
+      nombre: string
+    }
+  } | null
+}
 
 type Partido = {
-  id: number;
-  nombre: string;
-  siglas: string;
-};
+  id: number
+  nombre: string
+  siglas: string
+}
 
 interface VotoFormProps {
-  voto?: Voto;
-  casillas: Casilla[];
-  candidatos: Candidato[];
-  partidos: Partido[];
-  casillaId?: number;
+  voto?: Voto
+  casillas: Casilla[]
+  partidos: Partido[]
+  casillaId?: number
 }
 
 const formSchema = z.object({
   casillaId: z.string().min(1, "La casilla es requerida"),
-  candidatoId: z.string().optional(),
-  partidoId: z.string().optional(),
+  partidoId: z.string().min(1, "El partido es requerido"),
   cantidad: z.string().min(1, "La cantidad es requerida"),
-});
+})
 
-export function VotoForm({
-  voto,
-  casillas,
-  candidatos,
-  partidos,
-  casillaId,
-}: VotoFormProps) {
-  const router = useRouter();
-  const { toast } = useToast();
-  const [isLoading, setIsLoading] = useState(false);
-  const isEditing = !!voto;
+export function VotoForm({ voto, casillas, partidos, casillaId }: VotoFormProps) {
+  const router = useRouter()
+  const { toast } = useToast()
+  const [isLoading, setIsLoading] = useState(false)
+  const isEditing = !!voto
 
   const form = useForm<z.infer<typeof formSchema>>({
     resolver: zodResolver(formSchema),
     defaultValues: {
-      casillaId: voto?.casillaId
-        ? String(voto.casillaId)
-        : casillaId
-        ? String(casillaId)
-        : "",
-      candidatoId: voto?.candidatoId ? String(voto.candidatoId) : "",
+      casillaId: voto?.casillaId ? String(voto.casillaId) : casillaId ? String(casillaId) : "",
       partidoId: voto?.partidoId ? String(voto.partidoId) : "",
       cantidad: voto?.cantidad ? String(voto.cantidad) : "",
     },
-  });
+  })
 
   const onSubmit = async (values: z.infer<typeof formSchema>) => {
-    setIsLoading(true);
+    setIsLoading(true)
 
     try {
-      const url = isEditing ? `/api/votos/${voto.id}` : "/api/votos";
-      const method = isEditing ? "PUT" : "POST";
+      const url = isEditing ? `/api/votos/${voto.id}` : "/api/votos"
+      const method = isEditing ? "PUT" : "POST"
 
       const response = await fetch(url, {
         method,
@@ -112,17 +79,10 @@ export function VotoForm({
         body: JSON.stringify({
           ...values,
           casillaId: Number.parseInt(values.casillaId),
-          candidatoId:
-            values.candidatoId && values.candidatoId !== "none"
-              ? Number.parseInt(values.candidatoId)
-              : null,
-          partidoId:
-            values.partidoId && values.partidoId !== "none"
-              ? Number.parseInt(values.partidoId)
-              : null,
+          partidoId: Number.parseInt(values.partidoId),
           cantidad: Number.parseInt(values.cantidad),
         }),
-      });
+      })
 
       if (response.ok) {
         toast({
@@ -130,31 +90,31 @@ export function VotoForm({
           description: isEditing
             ? "El voto ha sido actualizado exitosamente"
             : "El voto ha sido registrado exitosamente",
-        });
+        })
         if (casillaId) {
-          router.push(`/casillas/${casillaId}/votos`);
+          router.push(`/casillas/${casillaId}/votos`)
         } else {
-          router.push("/votos");
+          router.push("/votos")
         }
-        router.refresh();
+        router.refresh()
       } else {
-        const data = await response.json();
+        const data = await response.json()
         toast({
           title: "Error",
           description: data.error || "Ocurrió un error",
           variant: "destructive",
-        });
+        })
       }
     } catch (error) {
       toast({
         title: "Error",
         description: "Ocurrió un error inesperado",
         variant: "destructive",
-      });
+      })
     } finally {
-      setIsLoading(false);
+      setIsLoading(false)
     }
-  };
+  }
 
   return (
     <Card>
@@ -168,11 +128,7 @@ export function VotoForm({
                 render={({ field }) => (
                   <FormItem>
                     <FormLabel>Casilla</FormLabel>
-                    <Select
-                      onValueChange={field.onChange}
-                      defaultValue={field.value}
-                      disabled={!!casillaId}
-                    >
+                    <Select onValueChange={field.onChange} defaultValue={field.value} disabled={!!casillaId}>
                       <FormControl>
                         <SelectTrigger>
                           <SelectValue placeholder="Selecciona una casilla" />
@@ -180,12 +136,8 @@ export function VotoForm({
                       </FormControl>
                       <SelectContent>
                         {casillas.map((casilla) => (
-                          <SelectItem
-                            key={casilla.id}
-                            value={String(casilla.id)}
-                          >
-                            {casilla.numero} - {casilla.seccion?.nombre} (
-                            {casilla.seccion?.municipio.nombre})
+                          <SelectItem key={casilla.id} value={String(casilla.id)}>
+                            {casilla.numero} - {casilla.seccion?.nombre} ({casilla.seccion?.municipio.nombre})
                           </SelectItem>
                         ))}
                       </SelectContent>
@@ -209,57 +161,19 @@ export function VotoForm({
               />
               <FormField
                 control={form.control}
-                name="candidatoId"
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel>Candidato</FormLabel>
-                    <Select
-                      onValueChange={field.onChange}
-                      defaultValue={field.value}
-                    >
-                      <FormControl>
-                        <SelectTrigger>
-                          <SelectValue placeholder="Selecciona un candidato" />
-                        </SelectTrigger>
-                      </FormControl>
-                      <SelectContent>
-                        <SelectItem value="none">Ninguno</SelectItem>
-                        {candidatos.map((candidato) => (
-                          <SelectItem
-                            key={candidato.id}
-                            value={String(candidato.id)}
-                          >
-                            {candidato.nombre} - {candidato.cargo}
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
-              <FormField
-                control={form.control}
                 name="partidoId"
                 render={({ field }) => (
                   <FormItem>
                     <FormLabel>Partido</FormLabel>
-                    <Select
-                      onValueChange={field.onChange}
-                      defaultValue={field.value}
-                    >
+                    <Select onValueChange={field.onChange} defaultValue={field.value}>
                       <FormControl>
                         <SelectTrigger>
                           <SelectValue placeholder="Selecciona un partido" />
                         </SelectTrigger>
                       </FormControl>
                       <SelectContent>
-                        <SelectItem value="none">Ninguno</SelectItem>
                         {partidos.map((partido) => (
-                          <SelectItem
-                            key={partido.id}
-                            value={String(partido.id)}
-                          >
+                          <SelectItem key={partido.id} value={String(partido.id)}>
                             {partido.siglas} - {partido.nombre}
                           </SelectItem>
                         ))}
@@ -276,9 +190,9 @@ export function VotoForm({
                 variant="outline"
                 onClick={() => {
                   if (casillaId) {
-                    router.push(`/casillas/${casillaId}/votos`);
+                    router.push(`/casillas/${casillaId}/votos`)
                   } else {
-                    router.push("/votos");
+                    router.push("/votos")
                   }
                 }}
                 disabled={isLoading}
@@ -291,13 +205,14 @@ export function VotoForm({
                     ? "Actualizando..."
                     : "Registrando..."
                   : isEditing
-                  ? "Actualizar"
-                  : "Registrar"}
+                    ? "Actualizar"
+                    : "Registrar"}
               </Button>
             </div>
           </form>
         </Form>
       </CardContent>
     </Card>
-  );
+  )
 }
+

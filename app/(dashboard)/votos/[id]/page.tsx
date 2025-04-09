@@ -1,24 +1,24 @@
-import { getServerSession } from "next-auth/next";
-import { authOptions } from "@/auth";
-import { redirect, notFound } from "next/navigation";
-import { db } from "@/lib/db";
-import { VotoForm } from "@/components/votos/voto-form";
-import { EliminarVotoButton } from "@/components/votos/eliminar-voto-button";
+import { getServerSession } from "next-auth/next"
+import { authOptions } from "@/auth"
+import { redirect, notFound } from "next/navigation"
+import { db } from "@/lib/db"
+import { VotoForm } from "@/components/votos/voto-form"
+import { EliminarVotoButton } from "@/components/votos/eliminar-voto-button"
 
 interface EditarVotoPageProps {
   params: {
-    id: string;
-  };
+    id: string
+  }
 }
 
 export default async function EditarVotoPage({ params }: EditarVotoPageProps) {
-  const session = await getServerSession(authOptions);
+  const session = await getServerSession(authOptions)
 
   if (!session?.user) {
-    redirect("/auth/login");
+    redirect("/auth/login")
   }
 
-  const id = Number.parseInt(params.id);
+  const id = Number.parseInt(params.id)
 
   const voto = await db.voto.findUnique({
     where: { id },
@@ -26,16 +26,15 @@ export default async function EditarVotoPage({ params }: EditarVotoPageProps) {
       id: true,
       cantidad: true,
       casillaId: true,
-      candidatoId: true,
       partidoId: true,
     },
-  });
+  })
 
   if (!voto) {
-    notFound();
+    notFound()
   }
 
-  // Obtener casillas, candidatos y partidos para el formulario
+  // Obtener casillas y partidos para el formulario
   const casillas = await db.casilla.findMany({
     select: {
       id: true,
@@ -61,29 +60,17 @@ export default async function EditarVotoPage({ params }: EditarVotoPageProps) {
         numero: "asc",
       },
     ],
-  });
-
-  const candidatos = await db.candidato.findMany({
-    select: {
-      id: true,
-      nombre: true,
-      cargo: true,
-    },
-    orderBy: {
-      nombre: "asc",
-    },
-  });
+  })
 
   const partidos = await db.partido.findMany({
     select: {
       id: true,
       nombre: true,
-      siglas: true,
     },
     orderBy: {
-      siglas: "asc",
+      nombre: "asc",
     },
-  });
+  })
 
   return (
     <div className="space-y-6">
@@ -95,12 +82,8 @@ export default async function EditarVotoPage({ params }: EditarVotoPageProps) {
         <EliminarVotoButton id={voto.id} />
       </div>
 
-      <VotoForm
-        voto={voto}
-        casillas={casillas}
-        candidatos={candidatos}
-        partidos={partidos}
-      />
+      <VotoForm voto={voto} casillas={casillas} partidos={partidos} />
     </div>
-  );
+  )
 }
+

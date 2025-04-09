@@ -1,35 +1,30 @@
-import { getServerSession } from "next-auth/next";
-import { authOptions } from "@/auth";
-import { redirect, notFound } from "next/navigation";
-import Link from "next/link";
-import { db } from "@/lib/db";
-import { Button } from "@/components/ui/button";
-import { VotosTable } from "@/components/votos/votos-table";
-import { Plus, ArrowLeft } from "lucide-react";
+import { getServerSession } from "next-auth/next"
+import { authOptions } from "@/auth"
+import { redirect } from "next/navigation"
+import Link from "next/link"
+import { db } from "@/lib/db"
+import { Button } from "@/components/ui/button"
+import { Plus } from "lucide-react"
+import { VotosTable } from "@/components/votos/votos-table"
 
-interface CasillaVotosPageProps {
+interface VotosPageProps {
   params: {
-    id: string;
-  };
+    id: string
+  }
 }
 
-export default async function CasillaVotosPage({
-  params,
-}: CasillaVotosPageProps) {
-  const session = await getServerSession(authOptions);
+export default async function VotosPage({ params }: VotosPageProps) {
+  const session = await getServerSession(authOptions)
 
   if (!session?.user) {
-    redirect("/auth/login");
+    redirect("/auth/login")
   }
 
-  const casillaId = Number.parseInt(params.id);
+  const casillaId = Number.parseInt(params.id)
 
-  // Verificar si la casilla existe
   const casilla = await db.casilla.findUnique({
     where: { id: casillaId },
-    select: {
-      id: true,
-      numero: true,
+    include: {
       seccion: {
         select: {
           nombre: true,
@@ -41,92 +36,53 @@ export default async function CasillaVotosPage({
         },
       },
     },
-  });
+  })
 
   if (!casilla) {
-    notFound();
+    redirect("/casillas")
   }
 
-  // Obtener los votos de la casilla
   const votos = await db.voto.findMany({
     where: {
       casillaId,
     },
-    select: {
-      id: true,
-      cantidad: true,
-      casilla: {
-        select: {
-          id: true,
-          numero: true,
-          seccion: {
-            select: {
-              nombre: true,
-              municipio: {
-                select: {
-                  nombre: true,
-                },
-              },
-            },
-          },
-        },
-      },
-      candidato: {
-        select: {
-          id: true,
-          nombre: true,
-          cargo: true,
-        },
-      },
-      partido: {
-        select: {
-          id: true,
-          nombre: true,
-          siglas: true,
-        },
-      },
+    include: {
+      partido: true,
     },
     orderBy: [
       {
-        candidato: {
+        partido: {
           nombre: "asc",
         },
       },
-      {
-        partido: {
-          siglas: "asc",
-        },
-      },
     ],
-  });
+  })
 
   return (
     <div className="space-y-6">
       <div className="flex justify-between items-center">
         <div>
-          <Button variant="outline" size="sm" asChild className="mb-2">
-            <Link href="/casillas">
-              <ArrowLeft className="mr-2 h-4 w-4" />
-              Volver a Casillas
-            </Link>
-          </Button>
-          <h1 className="text-3xl font-bold">
-            Votos de la Casilla: {casilla.numero} - {casilla.seccion?.nombre}
-          </h1>
+          <h1 className="text-3xl font-bold">Votos - Casilla {casilla.numero}</h1>
           <p className="text-muted-foreground">
-            Gestiona los votos registrados para la casilla {casilla.numero} en{" "}
-            {casilla.seccion?.municipio.nombre}
+            Sección: {casilla.seccion.nombre} - {casilla.seccion.municipio.nombre}
           </p>
         </div>
         <Button asChild>
           <Link href={`/casillas/${casillaId}/votos/crear`}>
             <Plus className="mr-2 h-4 w-4" />
-            Registrar Voto
+            Nuevo Voto
           </Link>
         </Button>
       </div>
 
       <VotosTable votos={votos} casillaId={casillaId} />
+
+      <div className="flex justify-end">
+        <Button variant="outline" asChild>
+          <Link href="/casillas">Volver a Casillas</Link>
+        </Button>
+      </div>
     </div>
-  );
+  )
 }
+

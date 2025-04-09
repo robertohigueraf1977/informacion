@@ -1,58 +1,47 @@
-import { PrismaClient, UserRole } from "@prisma/client";
-import bcrypt from "bcryptjs";
+import { PrismaClient } from "@prisma/client"
+import { hash } from "bcryptjs"
 
-const prisma = new PrismaClient();
+const prisma = new PrismaClient()
 
-async function main() {
+export async function main() {
   try {
     // Verificar si el usuario ya existe
-    const existingUser = await prisma.user.findUnique({
+    const existingUser = await prisma.user.findFirst({
       where: {
-        username: "Rhiguera",
+        OR: [{ username: "Rhiguera" }, { email: "roberto@example.com" }],
       },
-    });
+    })
 
     if (existingUser) {
-      console.log("El usuario Rhiguera ya existe. Actualizando contraseña...");
-
-      // Hashear la contraseña
-      const hashedPassword = await bcrypt.hash("Hivl090621", 10);
-
-      // Actualizar el usuario existente
-      await prisma.user.update({
-        where: {
-          username: "Rhiguera",
-        },
-        data: {
-          password: hashedPassword,
-          role: UserRole.SUPER_USER,
-        },
-      });
-
-      console.log("Contraseña actualizada y rol establecido como SUPER_USER");
-    } else {
-      // Hashear la contraseña
-      const hashedPassword = await bcrypt.hash("Hivl090621", 10);
-
-      // Crear el superusuario
-      await prisma.user.create({
-        data: {
-          name: "Administrador",
-          username: "Rhiguera",
-          email: "admin@sistema-electoral.com",
-          password: hashedPassword,
-          role: UserRole.SUPER_USER,
-        },
-      });
-
-      console.log("Superusuario Rhiguera creado exitosamente");
+      console.log("El superusuario ya existe. No se creará uno nuevo.")
+      return
     }
+
+    // Crear el superusuario
+    const hashedPassword = await hash("Hivl090621", 10)
+
+    const superUser = await prisma.user.create({
+      data: {
+        name: "Roberto",
+        username: "Rhiguera",
+        email: "roberto@example.com",
+        password: hashedPassword,
+        role: "SUPER_USER",
+      },
+    })
+
+    console.log("Superusuario creado exitosamente:")
+    console.log({
+      id: superUser.id,
+      name: superUser.name,
+      username: superUser.username,
+      email: superUser.email,
+      role: superUser.role,
+    })
   } catch (error) {
-    console.error("Error al crear/actualizar el superusuario:", error);
-    process.exit(1);
+    console.error("Error al crear el superusuario:", error)
   } finally {
-    await prisma.$disconnect();
+    await prisma.$disconnect()
   }
 }
 
-main();

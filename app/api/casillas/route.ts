@@ -1,27 +1,24 @@
-import { NextResponse } from "next/server";
-import { db } from "@/lib/db";
-import { getServerSession } from "next-auth/next";
-import { authOptions } from "@/auth";
+import { NextResponse } from "next/server"
+import { db } from "@/lib/db"
+import { getServerSession } from "next-auth/next"
+import { authOptions } from "@/auth"
 
 export async function GET() {
   try {
-    const session = await getServerSession(authOptions);
+    const session = await getServerSession(authOptions)
 
     // Verificar si el usuario está autenticado
     if (!session?.user) {
-      return NextResponse.json({ error: "No autorizado" }, { status: 403 });
+      return NextResponse.json({ error: "No autorizado" }, { status: 403 })
     }
 
     const casillas = await db.casilla.findMany({
       select: {
         id: true,
         numero: true,
-        tipo: true,
-        direccion: true,
-        latitud: true,
-        longitud: true,
         seccion: {
           select: {
+            id: true,
             nombre: true,
             municipio: {
               select: {
@@ -42,77 +39,65 @@ export async function GET() {
             nombre: "asc",
           },
         },
-        {
-          numero: "asc",
-        },
       ],
-    });
+    })
 
-    return NextResponse.json(casillas);
+    return NextResponse.json(casillas)
   } catch (error) {
-    console.error("Error al obtener casillas:", error);
-    return NextResponse.json(
-      { error: "Error interno del servidor" },
-      { status: 500 }
-    );
+    console.error("Error al obtener casillas:", error)
+    return NextResponse.json({ error: "Error interno del servidor" }, { status: 500 })
   }
 }
 
 export async function POST(req: Request) {
   try {
-    const session = await getServerSession(authOptions);
+    const session = await getServerSession(authOptions)
 
     // Verificar si el usuario está autenticado
     if (!session?.user) {
-      return NextResponse.json({ error: "No autorizado" }, { status: 403 });
+      return NextResponse.json({ error: "No autorizado" }, { status: 403 })
     }
 
-    const body = await req.json();
-    const { numero, tipo, seccionId, direccion, latitud, longitud } = body;
+    const body = await req.json()
+    const { seccionId } = body
 
-    if (!numero || !tipo || !seccionId) {
-      return NextResponse.json(
-        { error: "Faltan campos requeridos" },
-        { status: 400 }
-      );
+    if (!seccionId) {
+      return NextResponse.json({ error: "La sección es requerida" }, { status: 400 })
     }
 
-    // Verificar si la casilla ya existe en la misma sección
+    // Verificar si la sección existe
+    const seccion = await db.seccion.findUnique({
+      where: { id: Number(seccionId) },
+    })
+
+    if (!seccion) {
+      return NextResponse.json({ error: "La sección no existe" }, { status: 400 })
+    }
+
+    // Verificar si ya existe una casilla para esta sección
     const existingCasilla = await db.casilla.findFirst({
       where: {
-        numero,
         seccionId: Number(seccionId),
       },
-    });
+    })
 
     if (existingCasilla) {
-      return NextResponse.json(
-        {
-          error:
-            "Ya existe una casilla con ese nombre en la sección seleccionada",
-        },
-        { status: 400 }
-      );
+      return NextResponse.json({ error: "Ya existe una casilla para esta sección" }, { status: 400 })
     }
 
     // Crear la casilla
     const casilla = await db.casilla.create({
       data: {
-        numero,
-        tipo,
+        numero: String(seccionId),
+        tipo: "BASICA", // Valor por defecto para mantener compatibilidad
         seccionId: Number(seccionId),
-        direccion: direccion || null,
-        latitud: latitud ? Number(latitud) : null,
-        longitud: longitud ? Number(longitud) : null,
       },
-    });
+    })
 
-    return NextResponse.json(casilla, { status: 201 });
+    return NextResponse.json(casilla, { status: 201 })
   } catch (error) {
-    console.error("Error al crear casilla:", error);
-    return NextResponse.json(
-      { error: "Error interno del servidor" },
-      { status: 500 }
-    );
+    console.error("Error al crear casilla:", error)
+    return NextResponse.json({ error: "Error interno del servidor" }, { status: 500 })
   }
 }
+

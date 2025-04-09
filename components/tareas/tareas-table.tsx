@@ -1,19 +1,13 @@
-"use client";
+"use client"
 
-import { useState } from "react";
-import { useRouter } from "next/navigation";
-import Link from "next/link";
-import { useToast } from "@/hooks/use-toast";
-import { Button } from "@/components/ui/button";
-import { DataTable } from "@/components/ui/data-table";
-import { DataTableColumnHeader } from "@/components/ui/data-table-column-header";
-import {
-  MoreHorizontal,
-  Pencil,
-  Trash,
-  CheckCircle,
-  XCircle,
-} from "lucide-react";
+import { useState } from "react"
+import { useRouter } from "next/navigation"
+import Link from "next/link"
+import { useToast } from "@/hooks/use-toast"
+import { Button } from "@/components/ui/button"
+import { DataTable } from "@/components/ui/data-table"
+import { DataTableColumnHeader } from "@/components/ui/data-table-column-header"
+import { MoreHorizontal, Pencil, Trash, CheckCircle, XCircle } from "lucide-react"
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -21,7 +15,7 @@ import {
   DropdownMenuLabel,
   DropdownMenuSeparator,
   DropdownMenuTrigger,
-} from "@/components/ui/dropdown-menu";
+} from "@/components/ui/dropdown-menu"
 import {
   AlertDialog,
   AlertDialogAction,
@@ -31,70 +25,72 @@ import {
   AlertDialogFooter,
   AlertDialogHeader,
   AlertDialogTitle,
-} from "@/components/ui/alert-dialog";
-import { Badge } from "@/components/ui/badge";
-import { format } from "date-fns";
-import { es } from "date-fns/locale";
+} from "@/components/ui/alert-dialog"
+import { Badge } from "@/components/ui/badge"
+import { format } from "date-fns"
+import { es } from "date-fns/locale"
 
 type Tarea = {
-  id: number;
-  titulo: string;
-  descripcion: string | null;
-  fecha: Date | null;
-  completada: boolean;
+  id: number
+  titulo: string
+  descripcion: string | null
+  fecha: Date | null
+  completada: boolean
   creador: {
-    name: string | null;
-    username: string;
-  } | null;
+    id: string
+    name: string | null
+    username: string
+  } | null
   persona: {
-    nombre: string;
-    apellidoPaterno: string;
-    apellidoMaterno: string | null;
-  } | null;
-};
+    id: number
+    nombre: string
+    apellidoPaterno: string
+    apellidoMaterno: string | null
+  } | null
+}
 
 export function TareasTable({ tareas }: { tareas: Tarea[] }) {
-  const router = useRouter();
-  const { toast } = useToast();
-  const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false);
-  const [tareaToDelete, setTareaToDelete] = useState<Tarea | null>(null);
-  const [isDeleting, setIsDeleting] = useState(false);
+  const router = useRouter()
+  const { toast } = useToast()
+  const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false)
+  const [tareaToDelete, setTareaToDelete] = useState<Tarea | null>(null)
+  const [isDeleting, setIsDeleting] = useState(false)
 
   const handleDelete = async () => {
-    if (!tareaToDelete) return;
+    if (!tareaToDelete) return
 
-    setIsDeleting(true);
+    setIsDeleting(true)
     try {
       const response = await fetch(`/api/tareas/${tareaToDelete.id}`, {
         method: "DELETE",
-      });
+      })
 
       if (response.ok) {
         toast({
           title: "Tarea eliminada",
           description: "La tarea ha sido eliminada exitosamente",
-        });
-        router.refresh();
+        })
+        router.refresh()
       } else {
-        const data = await response.json();
+        const data = await response.json()
         toast({
           title: "Error",
           description: data.error || "Error al eliminar la tarea",
           variant: "destructive",
-        });
+        })
       }
     } catch (error) {
       toast({
         title: "Error",
         description: "Ocurrió un error al eliminar la tarea",
         variant: "destructive",
-      });
+      })
     } finally {
-      setIsDeleting(false);
-      setIsDeleteDialogOpen(false);
-      setTareaToDelete(null);
+      setIsDeleting(false)
+      setIsDeleteDialogOpen(false)
+      setTareaToDelete(null)
     }
-  };
+  }
 
   const handleToggleCompletada = async (tarea: Tarea) => {
     try {
@@ -106,88 +102,83 @@ export function TareasTable({ tareas }: { tareas: Tarea[] }) {
         body: JSON.stringify({
           completada: !tarea.completada,
         }),
-      });
+      })
 
       if (response.ok) {
         toast({
-          title: tarea.completada
-            ? "Tarea marcada como pendiente"
-            : "Tarea marcada como completada",
+          title: tarea.completada ? "Tarea marcada como pendiente" : "Tarea marcada como completada",
           description: tarea.completada
             ? "La tarea ha sido marcada como pendiente"
             : "La tarea ha sido marcada como completada",
-        });
-        router.refresh();
+        })
+        router.refresh()
       } else {
-        const data = await response.json();
+        const data = await response.json()
         toast({
           title: "Error",
           description: data.error || "Error al actualizar la tarea",
           variant: "destructive",
-        });
+        })
       }
     } catch (error) {
       toast({
         title: "Error",
         description: "Ocurrió un error al actualizar la tarea",
         variant: "destructive",
-      });
+      })
     }
-  };
+  }
+
 
   const columns = [
     {
       accessorKey: "titulo",
-      header: ({ column }) => (
-        <DataTableColumnHeader column={column} title="Título" />
-      ),
+      header: ({ column }) => <DataTableColumnHeader column={column} title="Título" />,
+      cell: ({ row }) => {
+        const titulo = row.original.titulo
+        return (
+          <Link href={`/tareas/${row.original.id}`} className="text-blue-600 hover:underline">
+            {titulo}
+          </Link>
+        )
+      },
     },
     {
       accessorKey: "fecha",
-      header: ({ column }) => (
-        <DataTableColumnHeader column={column} title="Fecha" />
-      ),
+      header: ({ column }) => <DataTableColumnHeader column={column} title="Fecha Límite" />,
       cell: ({ row }) => {
-        const fecha = row.original.fecha;
-        return fecha ? format(new Date(fecha), "PPP", { locale: es }) : "-";
+        const fecha = row.original.fecha
+        return fecha ? format(new Date(fecha), "PPP", { locale: es }) : "-"
       },
     },
     {
       accessorKey: "creador",
-      header: "Asignado a",
+      header: "Asignado por",
       cell: ({ row }) => {
-        const creador = row.original.creador;
-        return creador ? creador.name || creador.username : "-";
+        const asignadoPor = row.original.creador
+        return asignadoPor ? asignadoPor.name || asignadoPor.username : "-"
       },
     },
     {
       accessorKey: "persona",
-      header: "Relacionado con",
+      header: "Asignado a",
       cell: ({ row }) => {
-        const persona = row.original.persona;
-        return persona
-          ? `${persona.apellidoPaterno} ${persona.apellidoMaterno || ""} ${
-              persona.nombre
-            }`
-          : "-";
+        const persona = row.original.persona
+        return persona ? `${persona.apellidoPaterno} ${persona.apellidoMaterno || ""} ${persona.nombre}` : "-"
       },
     },
     {
       accessorKey: "completada",
       header: "Estado",
       cell: ({ row }) => {
-        const completada = row.original.completada;
-        return (
-          <Badge variant={completada ? "success" : "outline"}>
-            {completada ? "Completada" : "Pendiente"}
-          </Badge>
-        );
+        const completada = row.original.completada
+        return <Badge variant={completada ? "success" : "outline"}>{completada ? "Completada" : "Pendiente"}</Badge>
       },
     },
     {
       id: "acciones",
       cell: ({ row }) => {
-        const tarea = row.original;
+        const tarea = row.original
         return (
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
@@ -200,10 +191,7 @@ export function TareasTable({ tareas }: { tareas: Tarea[] }) {
               <DropdownMenuLabel>Acciones</DropdownMenuLabel>
               <DropdownMenuSeparator />
               <DropdownMenuItem asChild>
-                <Link
-                  href={`/tareas/${tarea.id}`}
-                  className="flex items-center"
-                >
+                <Link href={`/tareas/${tarea.id}`} className="flex items-center">
                   <Pencil className="mr-2 h-4 w-4" />
                   Editar
                 </Link>
@@ -223,8 +211,8 @@ export function TareasTable({ tareas }: { tareas: Tarea[] }) {
               </DropdownMenuItem>
               <DropdownMenuItem
                 onClick={() => {
-                  setTareaToDelete(tarea);
-                  setIsDeleteDialogOpen(true);
+                  setTareaToDelete(tarea)
+                  setIsDeleteDialogOpen(true)
                 }}
                 className="text-destructive focus:text-destructive"
               >
@@ -233,10 +221,10 @@ export function TareasTable({ tareas }: { tareas: Tarea[] }) {
               </DropdownMenuItem>
             </DropdownMenuContent>
           </DropdownMenu>
-        );
+        )
       },
     },
-  ];
+  ]
 
   return (
     <>
@@ -245,29 +233,50 @@ export function TareasTable({ tareas }: { tareas: Tarea[] }) {
         data={tareas}
         searchColumn="titulo"
         searchPlaceholder="Buscar tarea..."
+        showExport={true}
+        exportData={() => {
+          // Función para exportar datos a CSV
+          const headers = ["Título", "Fecha Límite", "Asignado por", "Asignado a", "Estado", "Descripción"]
+          const data = tareas.map((t) => [
+            t.titulo,
+            t.fecha ? format(new Date(t.fecha), "PPP", { locale: es }) : "",
+            t.creador ? t.creador.name || t.creador.username : "",
+            t.persona ? `${t.persona.apellidoPaterno} ${t.persona.apellidoMaterno || ""} ${t.persona.nombre}` : "",
+            t.completada ? "Completada" : "Pendiente",
+            t.descripcion || "",
+          ])
+
+          // Crear CSV
+          const csvContent = [headers.join(","), ...data.map((row) => row.join(","))].join("\n")
+
+          // Descargar archivo
+          const blob = new Blob([csvContent], { type: "text/csv;charset=utf-8;" })
+          const url = URL.createObjectURL(blob)
+          const link = document.createElement("a")
+          link.setAttribute("href", url)
+          link.setAttribute("download", "tareas.csv")
+          link.style.visibility = "hidden"
+          document.body.appendChild(link)
+          link.click()
+          document.body.removeChild(link)
+        }}
       />
 
-      <AlertDialog
-        open={isDeleteDialogOpen}
-        onOpenChange={setIsDeleteDialogOpen}
-      >
+      <AlertDialog open={isDeleteDialogOpen} onOpenChange={setIsDeleteDialogOpen}>
         <AlertDialogContent>
           <AlertDialogHeader>
             <AlertDialogTitle>¿Estás seguro?</AlertDialogTitle>
             <AlertDialogDescription>
-              Esta acción no se puede deshacer. Esto eliminará permanentemente
-              la tarea
+              Esta acción no se puede deshacer. Esto eliminará permanentemente la tarea
               {tareaToDelete && ` "${tareaToDelete.titulo}"`}.
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
-            <AlertDialogCancel disabled={isDeleting}>
-              Cancelar
-            </AlertDialogCancel>
+            <AlertDialogCancel disabled={isDeleting}>Cancelar</AlertDialogCancel>
             <AlertDialogAction
               onClick={(e) => {
-                e.preventDefault();
-                handleDelete();
+                e.preventDefault()
+                handleDelete()
               }}
               disabled={isDeleting}
               className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
@@ -278,5 +287,5 @@ export function TareasTable({ tareas }: { tareas: Tarea[] }) {
         </AlertDialogContent>
       </AlertDialog>
     </>
-  );
+  )
 }

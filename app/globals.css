@@ -59,9 +59,140 @@
 
 @layer base {
   * {
-    @apply border-neutral-200 dark:border-neutral-800;
+    @apply border-border;
   }
   body {
     @apply bg-background text-foreground;
   }
+}
+.leaflet-container {
+  z-index: 10 !important;
+}
+
+[data-radix-popper-content-wrapper] {
+  z-index: 9999 !important;
+}
+
+
+.leaflet-popup {
+  z-index: 1000 !important;
+  pointer-events: auto !important;
+}
+
+.leaflet-popup-content-wrapper {
+  z-index: 1001 !important;
+  pointer-events: auto !important;
+}
+
+.leaflet-popup-content {
+  pointer-events: auto !important;
+}
+
+.leaflet-popup-tip {
+  z-index: 1001 !important;
+}
+
+/* Asegúrate de que los botones dentro de los popups reciban eventos de clic */
+.leaflet-popup-content button {
+  pointer-events: auto !important;
+  cursor: pointer !important;
+}
+
+/* Mejora la visibilidad del popup */
+.custom-popup .leaflet-popup-content-wrapper {
+  padding: 0;
+  overflow: hidden;
+  border-radius: 6px;
+  box-shadow: 0 3px 14px rgba(0, 0, 0, 0.4) !important;
+  border: 1px solid rgba(0, 0, 0, 0.2);
+}
+
+.custom-popup .leaflet-popup-content {
+  margin: 0;
+  width: auto !important;
+}
+
+.custom-popup .leaflet-popup-tip {
+  background-color: #f9f9f9;
+  box-shadow: 0 3px 14px rgba(0, 0, 0, 0.4) !important;
+}
+
+/* Asegúrate de que el contenedor del mapa tenga un z-index adecuado */
+.leaflet-container {
+  z-index: 10;
+}
+
+/* Asegúrate de que los controles de Leaflet estén por encima de otros elementos */
+.leaflet-control {
+  z-index: 800 !important;
+}
+
+/* Añade estos estilos al final del archivo globals.css */
+
+/* Estilos para el panel de información personalizado */
+.custom-info-panel {
+  z-index: 1000 !important;
+  pointer-events: auto !important;
+  background-color: white;
+  border-radius: 6px;
+  box-shadow: 0 3px 14px rgba(0, 0, 0, 0.4);
+  border: 1px solid rgba(0, 0, 0, 0.2);
+  overflow: hidden;
+}
+
+/* Asegúrate de que los controles de Leaflet estén por encima de otros elementos */
+.leaflet-control {
+  z-index: 800 !important;
+}
+
+/* Asegúrate de que el contenedor del mapa tenga un z-index adecuado */
+.leaflet-container {
+  z-index: 10;
+}
+
+/* Asegúrate de que los popups tengan un z-index alto */
+.leaflet-popup {
+  z-index: 1000 !important;
+}
+
+.leaflet-popup-content-wrapper {
+  z-index: 1001 !important;
+}
+
+.leaflet-popup-tip {
+  z-index: 1001 !important;
+}
+
+/* Asegúrate de que los paneles de Leaflet tengan un z-index adecuado */
+.leaflet-pane {
+  z-index: 400 !important;
+}
+
+.leaflet-popup-pane {
+  z-index: 700 !important;
+}
+
+.leaflet-overlay-pane {
+  z-index: 400 !important;
+}
+
+.leaflet-marker-pane {
+  z-index: 600 !important;
+}
+
+.leaflet-tooltip-pane {
+  z-index: 650 !important;
+}
+
+.leaflet-shadow-pane {
+  z-index: 500;
+}
+
+/* Asegúrate de que los elementos dentro del panel de información reciban eventos de clic */
+.custom-info-panel button {
+  pointer-events: auto !important;
+  cursor: pointer !important;
+}
+.leaflet-interactive {
+  cursor: pointer !important;
 }

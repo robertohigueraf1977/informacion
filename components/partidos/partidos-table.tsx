@@ -31,7 +31,6 @@ import { Badge } from "@/components/ui/badge";
 type Partido = {
   id: number;
   nombre: string;
-  siglas: string;
   votos: any[];
 };
 
@@ -79,15 +78,7 @@ export function PartidosTable({ partidos }: { partidos: Partido[] }) {
   };
 
   const columns = [
-    {
-      accessorKey: "siglas",
-      header: ({ column }) => (
-        <DataTableColumnHeader column={column} title="Siglas" />
-      ),
-      cell: ({ row }) => {
-        return <Badge>{row.getValue("siglas")}</Badge>;
-      },
-    },
+    
     {
       accessorKey: "nombre",
       header: ({ column }) => (

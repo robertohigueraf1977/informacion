@@ -79,7 +79,7 @@ model Seccion {
   distritoFederal  DistritoFederal @relation(fields: [distritoFederalId], references: [id])
   personas         Persona[]
   domicilios       Domicilio[]
-  casillas         Casilla[]
+  casilla           Casilla?
 
   @@index([nombre], name: "idx_seccion_nombre")
   @@index([nombre, distritoLocalId, distritoFederalId], name: "idx_seccion_nombre_distritos")
@@ -173,49 +173,30 @@ model Domicilio {
 
 model Casilla {
   id          Int       @id @default(autoincrement())
-  tipo        String
   numero      String
-  ubicacion   String?
   direccion   String?
-  latitud     Float?
-  longitud    Float?
-  seccionId   Int
+  seccionId   Int      @unique
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
   seccion     Seccion  @relation(fields: [seccionId], references: [id])
   votos       Voto[]
 }
 
-model Candidato {
-  id              Int       @id @default(autoincrement())
-  nombre          String
-  cargo           String    // Presidente Municipal, Diputado Local, etc.
 
-  votos           Voto[]
-
-  @@map("candidatos")
-}
 
 model Partido {
   id              Int       @id @default(autoincrement())
-  nombre          String
-  siglas          String    // PAN, PRI, MORENA, etc.
-
+  nombre          String // PAN, PRI, MORENA, etc.
   votos           Voto[]
-
   @@map("partidos")
 }
 
 model Voto {
   id              Int       @id @default(autoincrement())
   cantidad        Int       // Número de votos registrados
-
   casillaId       Int
-  candidatoId     Int?
   partidoId       Int?
-
   casilla         Casilla   @relation(fields: [casillaId], references: [id])
-  candidato       Candidato? @relation(fields: [candidatoId], references: [id])
   partido         Partido?  @relation(fields: [partidoId], references: [id])
 
   @@map("votos")

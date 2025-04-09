@@ -1,9 +1,9 @@
-"use client";
+"use client"
 
-import { useState } from "react";
-import { useRouter } from "next/navigation";
-import { useToast } from "@/hooks/use-toast";
-import { Button } from "@/components/ui/button";
+import { useState } from "react"
+import { useRouter } from "next/navigation"
+import { useToast } from "@/hooks/use-toast"
+import { Button } from "@/components/ui/button"
 import {
   AlertDialog,
   AlertDialogAction,
@@ -14,57 +14,54 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
   AlertDialogTrigger,
-} from "@/components/ui/alert-dialog";
-import { Trash } from "lucide-react";
+} from "@/components/ui/alert-dialog"
+import { Trash } from "lucide-react"
 
 interface EliminarCasillaButtonProps {
-  id: number;
-  numero: string;
+  id: number
+  numero: string
 }
 
-export function EliminarCasillaButton({
-  id,
-  numero,
-}: EliminarCasillaButtonProps) {
-  const router = useRouter();
-  const { toast } = useToast();
-  const [isLoading, setIsLoading] = useState(false);
-  const [open, setOpen] = useState(false);
+export function EliminarCasillaButton({ id, numero }: EliminarCasillaButtonProps) {
+  const router = useRouter()
+  const { toast } = useToast()
+  const [isLoading, setIsLoading] = useState(false)
+  const [open, setOpen] = useState(false)
 
   const handleDelete = async () => {
-    setIsLoading(true);
+    setIsLoading(true)
 
     try {
       const response = await fetch(`/api/casillas/${id}`, {
         method: "DELETE",
-      });
+      })
 
       if (response.ok) {
         toast({
           title: "Casilla eliminada",
           description: "La casilla ha sido eliminada exitosamente",
-        });
-        router.push("/casillas");
-        router.refresh();
+        })
+        router.push("/casillas")
+        router.refresh()
       } else {
-        const data = await response.json();
+        const data = await response.json()
         toast({
           title: "Error",
           description: data.error || "Error al eliminar la casilla",
           variant: "destructive",
-        });
+        })
       }
     } catch (error) {
       toast({
         title: "Error",
         description: "Ocurrió un error al eliminar la casilla",
         variant: "destructive",
-      });
+      })
     } finally {
-      setIsLoading(false);
-      setOpen(false);
+      setIsLoading(false)
+      setOpen(false)
     }
-  };
+  }
 
   return (
     <AlertDialog open={open} onOpenChange={setOpen}>
@@ -78,16 +75,16 @@ export function EliminarCasillaButton({
         <AlertDialogHeader>
           <AlertDialogTitle>¿Estás seguro?</AlertDialogTitle>
           <AlertDialogDescription>
-            Esta acción no se puede deshacer. Esto eliminará permanentemente la
-            casilla "{numero}" y todos sus datos asociados.
+            Esta acción no se puede deshacer. Esto eliminará permanentemente la casilla "{numero}" y todos sus datos
+            asociados.
           </AlertDialogDescription>
         </AlertDialogHeader>
         <AlertDialogFooter>
           <AlertDialogCancel disabled={isLoading}>Cancelar</AlertDialogCancel>
           <AlertDialogAction
             onClick={(e) => {
-              e.preventDefault();
-              handleDelete();
+              e.preventDefault()
+              handleDelete()
             }}
             disabled={isLoading}
             className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
@@ -97,5 +94,6 @@ export function EliminarCasillaButton({
         </AlertDialogFooter>
       </AlertDialogContent>
     </AlertDialog>
-  );
+  )
 }
+

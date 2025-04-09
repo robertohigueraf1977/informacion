@@ -1,21 +1,18 @@
-import { NextResponse } from "next/server";
-import { db } from "@/lib/db";
-import { getServerSession } from "next-auth/next";
-import { authOptions } from "@/auth";
+import { NextResponse } from "next/server"
+import { db } from "@/lib/db"
+import { getServerSession } from "next-auth/next"
+import { authOptions } from "@/auth"
 
-export async function GET(
-  req: Request,
-  { params }: { params: { id: string } }
-) {
+export async function GET(req: Request, { params }: { params: { id: string } }) {
   try {
-    const session = await getServerSession(authOptions);
+    const session = await getServerSession(authOptions)
 
     // Verificar si el usuario está autenticado
     if (!session?.user) {
-      return NextResponse.json({ error: "No autorizado" }, { status: 403 });
+      return NextResponse.json({ error: "No autorizado" }, { status: 403 })
     }
 
-    const id = Number.parseInt(params.id);
+    const id = Number.parseInt(params.id)
 
     const persona = await db.persona.findUnique({
       where: { id },
@@ -32,39 +29,30 @@ export async function GET(
           },
         },
       },
-    });
+    })
 
     if (!persona) {
-      return NextResponse.json(
-        { error: "Persona no encontrada" },
-        { status: 404 }
-      );
+      return NextResponse.json({ error: "Persona no encontrada" }, { status: 404 })
     }
 
-    return NextResponse.json(persona);
+    return NextResponse.json(persona)
   } catch (error) {
-    console.error("Error al obtener persona:", error);
-    return NextResponse.json(
-      { error: "Error interno del servidor" },
-      { status: 500 }
-    );
+    console.error("Error al obtener persona:", error)
+    return NextResponse.json({ error: "Error interno del servidor" }, { status: 500 })
   }
 }
 
-export async function PUT(
-  req: Request,
-  { params }: { params: { id: string } }
-) {
+export async function PUT(req: Request, { params }: { params: { id: string } }) {
   try {
-    const session = await getServerSession(authOptions);
+    const session = await getServerSession(authOptions)
 
     // Verificar si el usuario está autenticado
     if (!session?.user) {
-      return NextResponse.json({ error: "No autorizado" }, { status: 403 });
+      return NextResponse.json({ error: "No autorizado" }, { status: 403 })
     }
 
-    const id = Number.parseInt(params.id);
-    const body = await req.json();
+    const id = Number.parseInt(params.id)
+    const body = await req.json()
     const {
       nombre,
       apellidoPaterno,
@@ -87,13 +75,10 @@ export async function PUT(
       referencias,
       latitud,
       longitud,
-    } = body;
+    } = body
 
     if (!nombre || !apellidoPaterno || !calle) {
-      return NextResponse.json(
-        { error: "Faltan campos requeridos" },
-        { status: 400 }
-      );
+      return NextResponse.json({ error: "Faltan campos requeridos" }, { status: 400 })
     }
 
     // Verificar si la persona existe
@@ -102,13 +87,10 @@ export async function PUT(
       include: {
         domicilio: true,
       },
-    });
+    })
 
     if (!existingPersona) {
-      return NextResponse.json(
-        { error: "Persona no encontrada" },
-        { status: 404 }
-      );
+      return NextResponse.json({ error: "Persona no encontrada" }, { status: 404 })
     }
 
     // Actualizar la persona y su domicilio en una transacción
@@ -130,7 +112,7 @@ export async function PUT(
           referente: referente || false,
           referidoPorId: referidoPorId || null,
         },
-      });
+      })
 
       // Actualizar el domicilio si existe, o crearlo si no existe
       if (existingPersona.domicilio) {
@@ -147,7 +129,7 @@ export async function PUT(
             longitud: longitud || null,
             seccionId: seccionId || null,
           },
-        });
+        })
       } else {
         await tx.domicilio.create({
           data: {
@@ -162,59 +144,81 @@ export async function PUT(
             personaId: persona.id,
             seccionId: seccionId || null,
           },
-        });
+        })
       }
 
-      return persona;
-    });
+      return persona
+    })
 
-    return NextResponse.json(persona);
+    return NextResponse.json(persona)
   } catch (error) {
-    console.error("Error al actualizar persona:", error);
-    return NextResponse.json(
-      { error: "Error interno del servidor" },
-      { status: 500 }
-    );
+    console.error("Error al actualizar persona:", error)
+    return NextResponse.json({ error: "Error interno del servidor" }, { status: 500 })
   }
 }
 
-export async function DELETE(
-  req: Request,
-  { params }: { params: { id: string } }
-) {
+export async function PATCH(req: Request, { params }: { params: { id: string } }) {
   try {
-    const session = await getServerSession(authOptions);
+    const session = await getServerSession(authOptions)
 
     // Verificar si el usuario está autenticado
     if (!session?.user) {
-      return NextResponse.json({ error: "No autorizado" }, { status: 403 });
+      return NextResponse.json({ error: "No autorizado" }, { status: 403 })
     }
 
-    const id = Number.parseInt(params.id);
+    const id = Number.parseInt(params.id)
+    const body = await req.json()
 
     // Verificar si la persona existe
     const existingPersona = await db.persona.findUnique({
       where: { id },
-    });
+    })
 
     if (!existingPersona) {
-      return NextResponse.json(
-        { error: "Persona no encontrada" },
-        { status: 404 }
-      );
+      return NextResponse.json({ error: "Persona no encontrada" }, { status: 404 })
+    }
+
+    // Actualizar solo los campos proporcionados
+    const persona = await db.persona.update({
+      where: { id },
+      data: body,
+    })
+
+    return NextResponse.json(persona)
+  } catch (error) {
+    console.error("Error al actualizar persona:", error)
+    return NextResponse.json({ error: "Error interno del servidor" }, { status: 500 })
+  }
+}
+
+export async function DELETE(req: Request, { params }: { params: { id: string } }) {
+  try {
+    const session = await getServerSession(authOptions)
+
+    // Verificar si el usuario está autenticado
+    if (!session?.user) {
+      return NextResponse.json({ error: "No autorizado" }, { status: 403 })
+    }
+
+    const id = Number.parseInt(params.id)
+
+    // Verificar si la persona existe
+    const existingPersona = await db.persona.findUnique({
+      where: { id },
+    })
+
+    if (!existingPersona) {
+      return NextResponse.json({ error: "Persona no encontrada" }, { status: 404 })
     }
 
     // Eliminar la persona (el domicilio se eliminará automáticamente por la relación)
     await db.persona.delete({
       where: { id },
-    });
+    })
 
-    return NextResponse.json({ success: true });
+    return NextResponse.json({ success: true })
   } catch (error) {
-    console.error("Error al eliminar persona:", error);
-    return NextResponse.json(
-      { error: "Error interno del servidor" },
-      { status: 500 }
-    );
+    console.error("Error al eliminar persona:", error)
+    return NextResponse.json({ error: "Error interno del servidor" }, { status: 500 })
   }
 }

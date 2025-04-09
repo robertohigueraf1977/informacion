@@ -1,53 +1,31 @@
-import { getServerSession } from "next-auth/next";
-import { authOptions } from "@/auth";
-import { redirect } from "next/navigation";
-import Link from "next/link";
-import { db } from "@/lib/db";
-import { Button } from "@/components/ui/button";
-import { VotosTable } from "@/components/votos/votos-table";
-import { Plus } from "lucide-react";
+import { getServerSession } from "next-auth/next"
+import { authOptions } from "@/auth"
+import { redirect } from "next/navigation"
+import Link from "next/link"
+import { db } from "@/lib/db"
+import { Button } from "@/components/ui/button"
+import { VotosTable } from "@/components/votos/votos-table"
+import { Plus } from "lucide-react"
 
 export default async function VotosPage() {
-  const session = await getServerSession(authOptions);
+  const session = await getServerSession(authOptions)
 
   if (!session?.user) {
-    redirect("/auth/login");
+    redirect("/auth/login")
   }
 
   const votos = await db.voto.findMany({
-    select: {
-      id: true,
-      cantidad: true,
+    include: {
       casilla: {
-        select: {
-          id: true,
-          numero: true,
+        include: {
           seccion: {
-            select: {
-              nombre: true,
-              municipio: {
-                select: {
-                  nombre: true,
-                },
-              },
+            include: {
+              municipio: true,
             },
           },
         },
       },
-      candidato: {
-        select: {
-          id: true,
-          nombre: true,
-          cargo: true,
-        },
-      },
-      partido: {
-        select: {
-          id: true,
-          nombre: true,
-          siglas: true,
-        },
-      },
+      partido: true,
     },
     orderBy: [
       {
@@ -56,16 +34,14 @@ export default async function VotosPage() {
         },
       },
     ],
-  });
+  })
 
   return (
     <div className="space-y-6">
       <div className="flex justify-between items-center">
         <div>
           <h1 className="text-3xl font-bold">Votos</h1>
-          <p className="text-muted-foreground">
-            Gestiona los votos por casilla
-          </p>
+          <p className="text-muted-foreground">Gestiona los votos por casilla</p>
         </div>
         <Button asChild>
           <Link href="/votos/crear">
@@ -75,7 +51,8 @@ export default async function VotosPage() {
         </Button>
       </div>
 
-      <VotosTable votos={votos} />
+      <VotosTable votos={votos} casillaId={0} />
     </div>
-  );
+  )
 }
+

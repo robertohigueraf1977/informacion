@@ -1,16 +1,28 @@
-import { dirname } from "path";
-import { fileURLToPath } from "url";
-import { FlatCompat } from "@eslint/eslintrc";
+/** @type {import('next').NextConfig} */
+const nextConfig = {
+  // Configuración básica compatible con Next.js
+  reactStrictMode: false,
+  experimental: {
+    // Eliminar optimizePackageImports que está causando el error
+    serverActions: {
+      allowedOrigins: ['localhost:3000'],
+      bodySizeLimit: '10mb',
+    },
+  },
+  // Configuración para evitar problemas de caché
+  headers: async () => {
+    return [
+      {
+        source: '/(.*)',
+        headers: [
+          {
+            key: 'Cache-Control',
+            value: 'no-store, max-age=0',
+          },
+        ],
+      },
+    ]
+  },
+}
 
-const __filename = fileURLToPath(import.meta.url);
-const __dirname = dirname(__filename);
-
-const compat = new FlatCompat({
-  baseDirectory: __dirname,
-});
-
-const eslintConfig = [
-  ...compat.extends("next/core-web-vitals", "next/typescript"),
-];
-
-export default eslintConfig;
+export default nextConfig

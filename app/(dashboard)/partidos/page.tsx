@@ -19,7 +19,7 @@ export default async function PartidosPage() {
       votos: true,
     },
     orderBy: {
-      siglas: "asc",
+      nombre: "asc",
     },
   });
 

@@ -1,35 +1,26 @@
-import { getServerSession } from "next-auth/next";
-import { authOptions } from "@/auth";
-import { redirect } from "next/navigation";
-import Link from "next/link";
-import { db } from "@/lib/db";
-import { Button } from "@/components/ui/button";
-import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from "@/components/ui/table";
-import { Badge } from "@/components/ui/badge";
-import { Plus } from "lucide-react";
+import { getServerSession } from "next-auth/next"
+import { authOptions } from "@/auth"
+import { redirect } from "next/navigation"
+import Link from "next/link"
+import { db } from "@/lib/db"
+import { Button } from "@/components/ui/button"
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
+import { Plus, FileBarChart } from "lucide-react"
 
 export default async function CasillasPage() {
-  const session = await getServerSession(authOptions);
+  const session = await getServerSession(authOptions)
 
   if (!session?.user) {
-    redirect("/auth/login");
+    redirect("/auth/login")
   }
 
   const casillas = await db.casilla.findMany({
     select: {
       id: true,
       numero: true,
-      tipo: true,
-      direccion: true,
       seccion: {
         select: {
+          id: true,
           nombre: true,
           municipio: {
             select: {
@@ -46,39 +37,17 @@ export default async function CasillasPage() {
     },
     orderBy: [
       {
-        seccion: {
-          nombre: "asc",
-        },
-      },
-      {
-        numero: "asc",
+        seccionId: "asc",
       },
     ],
-  });
-
-  const getTipoCasillaBadgeVariant = (tipo: string) => {
-    switch (tipo) {
-      case "BASICA":
-        return "default";
-      case "CONTIGUA":
-        return "secondary";
-      case "EXTRAORDINARIA":
-        return "outline";
-      case "ESPECIAL":
-        return "destructive";
-      default:
-        return "outline";
-    }
-  };
+  })
 
   return (
     <div className="space-y-6">
       <div className="flex justify-between items-center">
         <div>
           <h1 className="text-3xl font-bold">Casillas</h1>
-          <p className="text-muted-foreground">
-            Gestiona las casillas electorales
-          </p>
+          <p className="text-muted-foreground">Gestiona las casillas electorales</p>
         </div>
         <Button asChild>
           <Link href="/casillas/crear">
@@ -92,19 +61,17 @@ export default async function CasillasPage() {
         <Table>
           <TableHeader>
             <TableRow>
-              <TableHead>Numero</TableHead>
-              <TableHead>Tipo</TableHead>
+              <TableHead>Número</TableHead>
               <TableHead>Sección</TableHead>
               <TableHead>Municipio</TableHead>
-              <TableHead>Dirección</TableHead>
               <TableHead>Votos</TableHead>
-              <TableHead className="w-[100px]">Acciones</TableHead>
+              <TableHead className="w-[150px]">Acciones</TableHead>
             </TableRow>
           </TableHeader>
           <TableBody>
             {casillas.length === 0 ? (
               <TableRow>
-                <TableCell colSpan={7} className="text-center">
+                <TableCell colSpan={5} className="text-center">
                   No hay casillas registradas
                 </TableCell>
               </TableRow>
@@ -112,21 +79,19 @@ export default async function CasillasPage() {
               casillas.map((casilla) => (
                 <TableRow key={casilla.id}>
                   <TableCell>{casilla.numero}</TableCell>
-                  <TableCell>
-                    <Badge variant={getTipoCasillaBadgeVariant(casilla.tipo)}>
-                      {casilla.tipo}
-                    </Badge>
-                  </TableCell>
                   <TableCell>{casilla.seccion?.nombre || "-"}</TableCell>
-                  <TableCell>
-                    {casilla.seccion?.municipio?.nombre || "-"}
-                  </TableCell>
-                  <TableCell>{casilla.direccion || "-"}</TableCell>
+                  <TableCell>{casilla.seccion?.municipio?.nombre || "-"}</TableCell>
                   <TableCell>{casilla.votos.length}</TableCell>
                   <TableCell>
                     <div className="flex space-x-2">
                       <Button asChild size="sm" variant="outline">
                         <Link href={`/casillas/${casilla.id}`}>Editar</Link>
+                      </Button>
+                      <Button asChild size="sm">
+                        <Link href={`/casillas/${casilla.id}/votos`}>
+                          <FileBarChart className="mr-2 h-4 w-4" />
+                          Votos
+                        </Link>
                       </Button>
                     </div>
                   </TableCell>
@@ -137,5 +102,6 @@ export default async function CasillasPage() {
         </Table>
       </div>
     </div>
-  );
+  )
 }
+
