@@ -83,6 +83,11 @@ const routes = [
     href: "/votos",
   },
   {
+    label: "Metas y Resultados",
+    icon: FileBarChart,
+    href: "/metasresultados",
+  },
+  {
     label: "Mapa Electoral",
     icon: Globe,
     href: "/mapa",
@@ -178,4 +183,3 @@ export function Sidebar() {
     </div>
   )
 }
-

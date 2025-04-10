@@ -5,7 +5,7 @@ import { getServerSession } from "next-auth/next"
 import { authOptions } from "@/auth"
 import { db } from "@/lib/db"
 
-export async function GET() {
+export async function GET(req: Request) {
   try {
     const session = await getServerSession(authOptions)
 

@@ -3,8 +3,8 @@ import { db } from "@/lib/db"
 import { getServerSession } from "next-auth/next"
 import { authOptions } from "@/auth"
 
-// Mejorar el manejo de errores y la respuesta de la API
-export async function GET(req: Request, { params }: { params: { id: string } }) {
+// Mejorar la respuesta de la API para incluir más información de diagnóstico
+export async function GET(req: Request, { params }: { params: Promise<{ id: string }> }) {
   try {
     const session = await getServerSession(authOptions)
 
@@ -13,10 +13,12 @@ export async function GET(req: Request, { params }: { params: { id: string } }) 
       return NextResponse.json({ error: "No autorizado" }, { status: 403 })
     }
 
-    const id = Number.parseInt(params.id)
+    // Esperar a que los parámetros estén disponibles
+    const resolvedParams = await params
+    const id = Number.parseInt(resolvedParams.id)
 
     if (isNaN(id)) {
-      console.error("ID de sección inválido:", params.id)
+      console.error("ID de sección inválido:", resolvedParams.id)
       return NextResponse.json({ error: "ID de sección inválido" }, { status: 400 })
     }
 
@@ -67,6 +69,10 @@ export async function GET(req: Request, { params }: { params: { id: string } }) 
             distritoLocal: null,
             distritoFederal: null,
           },
+          _debug: {
+            message: "Sección creada automáticamente",
+            timestamp: new Date().toISOString(),
+          },
         })
       } catch (createError) {
         console.error("Error al crear la sección:", createError)
@@ -74,6 +80,10 @@ export async function GET(req: Request, { params }: { params: { id: string } }) 
           {
             error: "Sección no encontrada y no se pudo crear automáticamente",
             details: createError instanceof Error ? createError.message : String(createError),
+            _debug: {
+              message: "Error al crear sección",
+              timestamp: new Date().toISOString(),
+            },
           },
           { status: 404 },
         )
@@ -118,6 +128,13 @@ export async function GET(req: Request, { params }: { params: { id: string } }) 
     const response = {
       personas: personas || [],
       seccion: seccion || null,
+      _debug: {
+        message: "Datos obtenidos correctamente",
+        timestamp: new Date().toISOString(),
+        seccionId: id,
+        personasCount: personas.length,
+        seccionExists: !!seccion,
+      },
     }
 
     console.log("Enviando respuesta:", JSON.stringify(response).substring(0, 200) + "...")
@@ -129,6 +146,10 @@ export async function GET(req: Request, { params }: { params: { id: string } }) 
       {
         error: "Error interno del servidor: " + (error instanceof Error ? error.message : String(error)),
         stack: process.env.NODE_ENV === "development" ? (error instanceof Error ? error.stack : null) : null,
+        _debug: {
+          message: "Error interno del servidor",
+          timestamp: new Date().toISOString(),
+        },
       },
       { status: 500 },
     )

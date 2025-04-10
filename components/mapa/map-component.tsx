@@ -189,7 +189,7 @@ function MapUpdater({
             weight: 1,
             opacity: 1,
             color: "white",
-            fillOpacity: 0.7,
+            fillOpacity: 0.5,
           }
         },
         onEachFeature: (feature, layer) => {
@@ -202,7 +202,7 @@ function MapUpdater({
               layer.setStyle({
                 weight: 3,
                 color: "#666",
-                fillOpacity: 0.9,
+                fillOpacity: 0.7,
               })
               layer.bringToFront()
             },
@@ -234,14 +234,14 @@ function MapUpdater({
               e.target.setStyle({
                 weight: 3,
                 color: "#000",
-                fillOpacity: 0.9,
+                fillOpacity: 0.7,
               })
 
               // Si la feature tiene un ID de sección, llamar a onSeccionSelect con el color
-              if (feature.properties && feature.properties.SECCION_ID) {
-                console.log("Llamando a onSeccionSelect con ID:", feature.properties.SECCION_ID)
-                onSeccionSelect(feature.properties.SECCION_ID, feature.properties, color)
-              } else if (feature.properties && feature.properties.SECCION) {
+              if (feature.properties && feature.properties.ID) {
+                console.log("Llamando a onSeccionSelect con ID:", feature.properties.ID)
+                onSeccionSelect(feature.properties.ID, feature.properties, color)
+              } /* else if (feature.properties && feature.properties.SECCION) {
                 // Intentar usar el nombre de la sección como ID si no hay SECCION_ID
                 console.log("No hay SECCION_ID, intentando usar SECCION:", feature.properties.SECCION)
                 const seccionId = Number.parseInt(feature.properties.SECCION, 10)
@@ -251,7 +251,7 @@ function MapUpdater({
                 } else {
                   console.error("No se pudo determinar el ID de la sección")
                 }
-              } else {
+              } */ else {
                 console.error("La feature no tiene propiedades de sección")
               }
             },
@@ -612,7 +612,7 @@ export default function MapComponent({ geoJsonData, colorBy }: MapComponentProps
                     <div className="p-3 bg-gray-50 rounded-md border border-gray-100">
                       <h3 className="text-xs font-semibold text-gray-500 mb-1">Municipio</h3>
                       <div className="text-sm font-medium">
-                        { seccionInfo?.municipio?.nombre || "No asignado"}
+                        {seccionInfo?.municipio?.nombre || "No asignado"}
                       </div>
                     </div>
                     <div className="p-3 bg-gray-50 rounded-md border border-gray-100">

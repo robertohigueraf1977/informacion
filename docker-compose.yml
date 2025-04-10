@@ -1,5 +1,3 @@
-version: "3.8"
-
 services:
   postgres:
     image: postgres:14
@@ -13,6 +11,8 @@ services:
       - POSTGRES_DB=infosys
     volumes:
       - postgres_data:/var/lib/postgresql/data
+      - "/mnt/c/Users/rober/OneDrive/Escritorio/datos elec:/datos"
+
 
 volumes:
   postgres_data:

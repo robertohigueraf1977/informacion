@@ -79,7 +79,7 @@ model Seccion {
   distritoFederal  DistritoFederal @relation(fields: [distritoFederalId], references: [id])
   personas         Persona[]
   domicilios       Domicilio[]
-  casilla           Casilla?
+  casilla          Casilla?
 
   @@index([nombre], name: "idx_seccion_nombre")
   @@index([nombre, distritoLocalId, distritoFederalId], name: "idx_seccion_nombre_distritos")

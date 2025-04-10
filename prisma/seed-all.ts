@@ -1,31 +1,31 @@
 import { main as seedMain } from './seed';
-import { main as seedSecciones } from './seed-secciones';
-import { main as seedSeccionesReales } from './seed-secciones-reales';
-import { main as seedSeccionesEspecificas } from './seed-secciones-especificas';
+import { main as seedPartidos } from './new-seed-partidos';
+import { main as seedSecciones } from './new-seed-secciones';
+import { main as seedCasillas } from './new-seed-casillas';
 
 async function seedAll() {
   try {
     console.log('🌱 Starting the seeding process...');
     
-    // Run the main seed script first
-    console.log('🌱 Running main seed script...');
+    // Run the main seed script first (user)
+    console.log('🌱 Running main seed script (usuarios)...');
     await seedMain();
     console.log('✅ Main seed completed successfully');
     
-    // Run seed-secciones.ts
-    console.log('🌱 Running seed-secciones...');
+    // Run new-seed-partidos.ts
+    console.log('🌱 Running seed de partidos...');
+    await seedPartidos();
+    console.log('✅ Seed de partidos completed successfully');
+    
+    // Run new-seed-secciones.ts
+    console.log('🌱 Running seed de secciones...');
     await seedSecciones();
-    console.log('✅ seed-secciones completed successfully');
+    console.log('✅ Seed de secciones completed successfully');
     
-    // Run seed-secciones-reales.ts
-    console.log('🌱 Running seed-secciones-reales...');
-    await seedSeccionesReales();
-    console.log('✅ seed-secciones-reales completed successfully');
-    
-    // Run seed-secciones-especificas.ts
-    console.log('🌱 Running seed-secciones-especificas...');
-    await seedSeccionesEspecificas();
-    console.log('✅ seed-secciones-especificas completed successfully');
+    // Run new-seed-casillas.ts
+    console.log('🌱 Running seed de casillas...');
+    await seedCasillas();
+    console.log('✅ Seed de casillas completed successfully');
     
     console.log('🎉 All seed scripts completed successfully!');
   } catch (error) {
