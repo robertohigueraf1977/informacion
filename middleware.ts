@@ -1,12 +1,21 @@
+import { withAuth } from "next-auth/middleware";
 import { NextResponse } from "next/server";
-import type { NextRequest } from "next/server";
 
-export async function middleware(request: NextRequest) {
-  // Temporalmente deshabilitamos la verificación de autenticación
-  // hasta que resolvamos el problema con NextAuth
-  return NextResponse.next();
-}
+// Export the middleware with NextAuth authentication
+export default withAuth(
+  // Customize this function to handle additional logic if needed
+  function middleware(req) {
+    return NextResponse.next();
+  },
+  {
+    // Customize the authentication behavior if needed
+    callbacks: {
+      authorized: ({ token }) => !!token, // Only allow authenticated users
+    },
+  }
+);
 
+// Define which routes to protect
 export const config = {
   matcher: [
     "/dashboard/:path*",
@@ -22,6 +31,7 @@ export const config = {
     "/votos/:path*",
     "/tareas/:path*",
     "/usuarios/:path*",
-    "/auth/:path*",
+    // Don't protect auth pages (to avoid redirect loops)
+    // "/auth/:path*", 
   ],
 };

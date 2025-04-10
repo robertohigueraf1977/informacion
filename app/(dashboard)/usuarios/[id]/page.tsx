@@ -1,5 +1,5 @@
 import { redirect, notFound } from "next/navigation";
-import { getServerSession } from "next-auth/next";
+import { getServerSession } from "next-auth";
 import { authOptions } from "@/auth";
 import { UserRole } from "@prisma/client";
 import { UsuarioForm } from "@/components/usuarios/usuario-form";

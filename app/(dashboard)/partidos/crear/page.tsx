@@ -1,4 +1,4 @@
-import { getServerSession } from "next-auth/next";
+import { getServerSession } from "next-auth";
 import { authOptions } from "@/auth";
 import { redirect } from "next/navigation";
 import { PartidoForm } from "@/components/partidos/partido-form";

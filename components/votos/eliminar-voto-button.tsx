@@ -20,9 +20,10 @@ import { Trash } from "lucide-react";
 interface EliminarVotoButtonProps {
   id: number;
   casillaId?: number;
+  onSuccess?: () => void;
 }
 
-export function EliminarVotoButton({ id, casillaId }: EliminarVotoButtonProps) {
+export function EliminarVotoButton({ id, casillaId, onSuccess }: EliminarVotoButtonProps) {
   const router = useRouter();
   const { toast } = useToast();
   const [isLoading, setIsLoading] = useState(false);
@@ -47,6 +48,9 @@ export function EliminarVotoButton({ id, casillaId }: EliminarVotoButtonProps) {
           router.push("/votos");
         }
         router.refresh();
+        if (onSuccess) {
+          onSuccess();
+        }
       } else {
         const data = await response.json();
         toast({
@@ -70,9 +74,9 @@ export function EliminarVotoButton({ id, casillaId }: EliminarVotoButtonProps) {
   return (
     <AlertDialog open={open} onOpenChange={setOpen}>
       <AlertDialogTrigger asChild>
-        <Button variant="destructive">
+        <Button variant="destructive" size="sm">
           <Trash className="mr-2 h-4 w-4" />
-          Eliminar Voto
+          Eliminar
         </Button>
       </AlertDialogTrigger>
       <AlertDialogContent>

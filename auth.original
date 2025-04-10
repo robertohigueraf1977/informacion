@@ -1,13 +1,12 @@
-import { NextAuthOptions } from "next-auth";
+import NextAuth, { type DefaultSession, type NextAuthConfig } from "next-auth";
 import { PrismaAdapter } from "@auth/prisma-adapter";
 import CredentialsProvider from "next-auth/providers/credentials";
 import bcrypt from "bcryptjs";
 import { UserRole } from "@prisma/client";
-import { DefaultSession } from "next-auth";
 
 import { db } from "@/lib/db";
 
-// Type extensions
+// We'll inline the types directly in this file rather than importing them
 declare module "next-auth" {
   interface Session {
     user: {
@@ -21,7 +20,7 @@ declare module "next-auth" {
   }
 }
 
-export const authOptions: NextAuthOptions = {
+export const authConfig: NextAuthConfig = {
   adapter: PrismaAdapter(db),
   session: { 
     strategy: "jwt" 
@@ -90,3 +89,5 @@ export const authOptions: NextAuthOptions = {
     },
   },
 };
+
+export const { handlers, auth, signIn, signOut } = NextAuth(authConfig);

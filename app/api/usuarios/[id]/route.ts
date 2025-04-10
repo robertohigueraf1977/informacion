@@ -3,7 +3,7 @@ import { db } from "@/lib/db";
 import { authOptions } from "@/auth";
 import { UserRole } from "@prisma/client";
 import bcrypt from "bcryptjs";
-import { getServerSession } from "next-auth/next";
+import { getServerSession } from "next-auth";
 
 export async function GET(
   req: Request,

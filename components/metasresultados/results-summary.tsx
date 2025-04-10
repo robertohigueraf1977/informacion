@@ -1,11 +1,9 @@
 "use client"
 
-import type React from "react"
-
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Progress } from "@/components/ui/progress"
-import * as ProgressPrimitive from "@radix-ui/react-progress"
-import { cn } from "@/lib/utils"
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
+import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer } from "recharts"
 
 interface ResultsSummaryProps {
   data: Record<string, number>
@@ -44,77 +42,175 @@ export function ResultsSummary({ data }: ResultsSummaryProps) {
     .sort((a, b) => b[1] - a[1])
     .slice(0, 10) // Mostrar solo los 10 primeros
 
-  return (
-    <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
-      <Card>
-        <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-          <CardTitle className="text-sm font-medium">Total de Votos</CardTitle>
-        </CardHeader>
-        <CardContent>
-          <div className="text-2xl font-bold">{data.total_votos?.toLocaleString() || 0}</div>
-          <p className="text-xs text-muted-foreground">
-            De {data.total_lista_nominal?.toLocaleString() || 0} en lista nominal
-          </p>
-        </CardContent>
-      </Card>
-      <Card>
-        <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-          <CardTitle className="text-sm font-medium">Participación</CardTitle>
-        </CardHeader>
-        <CardContent>
-          <div className="text-2xl font-bold">{data.participacion?.toFixed(2) || 0}%</div>
-          <Progress value={data.participacion || 0} className="mt-2" />
-        </CardContent>
-      </Card>
-      <Card>
-        <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-          <CardTitle className="text-sm font-medium">Secciones</CardTitle>
-        </CardHeader>
-        <CardContent>
-          <div className="text-2xl font-bold">{data.total_secciones?.toLocaleString() || 0}</div>
-          <p className="text-xs text-muted-foreground">Secciones electorales analizadas</p>
-        </CardContent>
-      </Card>
-      <Card>
-        <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-          <CardTitle className="text-sm font-medium">Votos Nulos</CardTitle>
-        </CardHeader>
-        <CardContent>
-          <div className="text-2xl font-bold">{data.NULOS?.toLocaleString() || 0}</div>
-          <p className="text-xs text-muted-foreground">{data.NULOS_porcentaje?.toFixed(2) || 0}% del total de votos</p>
-        </CardContent>
-      </Card>
+  // Preparar datos para el gráfico
+  const chartData = sortedResults.map(([party, votes]) => ({
+    name: party,
+    votos: votes,
+    porcentaje: data[`${party}_porcentaje`] || 0,
+  }))
 
-      <Card className="col-span-full">
+  return (
+    <div className="space-y-6">
+      <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
+        <Card>
+          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+            <CardTitle className="text-sm font-medium">Total de Votos</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="text-2xl font-bold">{data.total_votos?.toLocaleString() || 0}</div>
+            <p className="text-xs text-muted-foreground">
+              De {data.total_lista_nominal?.toLocaleString() || 0} en lista nominal
+            </p>
+          </CardContent>
+        </Card>
+        <Card>
+          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+            <CardTitle className="text-sm font-medium">Participación</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="text-2xl font-bold">{data.participacion?.toFixed(2) || 0}%</div>
+            <Progress value={data.participacion || 0} className="mt-2" />
+          </CardContent>
+        </Card>
+        <Card>
+          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+            <CardTitle className="text-sm font-medium">Secciones</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="text-2xl font-bold">{data.total_secciones?.toLocaleString() || 0}</div>
+            <p className="text-xs text-muted-foreground">Secciones electorales analizadas</p>
+          </CardContent>
+        </Card>
+        <Card>
+          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+            <CardTitle className="text-sm font-medium">Votos Nulos</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="text-2xl font-bold">{data.NULOS?.toLocaleString() || 0}</div>
+            <p className="text-xs text-muted-foreground">
+              {data.NULOS_porcentaje?.toFixed(2) || 0}% del total de votos
+            </p>
+          </CardContent>
+        </Card>
+      </div>
+
+      {/* Add block analysis section */}
+      <Card>
         <CardHeader>
-          <CardTitle>Resultados por Partido/Coalición</CardTitle>
+          <CardTitle>Análisis por Bloques</CardTitle>
         </CardHeader>
         <CardContent>
           <div className="space-y-4">
-            {sortedResults.map(([party, votes]) => {
-              const percentage = data[`${party}_porcentaje`] || 0
-              return (
-                <div key={party} className="flex items-center">
-                  <div className="w-16 md:w-24 font-medium">{party}</div>
-                  <div className="flex-1 mx-4">
-                    <Progress
-                      value={percentage}
-                      className="h-2"
-                      style={{ "--progress-background": getPartyColor(party) } as React.CSSProperties}
-                    >
-                      <ProgressPrimitive.Indicator
-                        className={cn("h-full w-full flex-1 transition-all", `bg-[${getPartyColor(party)}]`)}
-                      />
-                    </Progress>
-                  </div>
-                  <div className="w-20 text-right font-medium">{votes.toLocaleString()}</div>
-                  <div className="w-16 text-right text-muted-foreground">{percentage.toFixed(2)}%</div>
-                </div>
-              )
-            })}
+            <div className="flex items-center">
+              <div className="w-24 font-medium">Izquierda</div>
+              <div className="flex-1 mx-4">
+                <Progress
+                  value={data.bloque_izquierda_porcentaje || 0}
+                  className="h-3"
+                  indicatorClassName="bg-[#7e22ce]"
+                />
+              </div>
+              <div className="w-24 text-right font-medium">{(data.bloque_izquierda || 0).toLocaleString()}</div>
+              <div className="w-20 text-right text-muted-foreground">
+                {(data.bloque_izquierda_porcentaje || 0).toFixed(2)}%
+              </div>
+            </div>
+
+            <div className="flex items-center">
+              <div className="w-24 font-medium">Derecha</div>
+              <div className="flex-1 mx-4">
+                <Progress
+                  value={data.bloque_derecha_porcentaje || 0}
+                  className="h-3"
+                  indicatorClassName="bg-[#1e40af]"
+                />
+              </div>
+              <div className="w-24 text-right font-medium">{(data.bloque_derecha || 0).toLocaleString()}</div>
+              <div className="w-20 text-right text-muted-foreground">
+                {(data.bloque_derecha_porcentaje || 0).toFixed(2)}%
+              </div>
+            </div>
+
+            <div className="flex items-center">
+              <div className="w-24 font-medium">Centro</div>
+              <div className="flex-1 mx-4">
+                <Progress
+                  value={data.bloque_centro_porcentaje || 0}
+                  className="h-3"
+                  indicatorClassName="bg-[#ea580c]"
+                />
+              </div>
+              <div className="w-24 text-right font-medium">{(data.bloque_centro || 0).toLocaleString()}</div>
+              <div className="w-20 text-right text-muted-foreground">
+                {(data.bloque_centro_porcentaje || 0).toFixed(2)}%
+              </div>
+            </div>
           </div>
         </CardContent>
       </Card>
+
+      <Tabs defaultValue="bars" className="space-y-4">
+        <TabsList>
+          <TabsTrigger value="bars">Gráfico</TabsTrigger>
+          <TabsTrigger value="table">Tabla</TabsTrigger>
+        </TabsList>
+
+        <TabsContent value="bars">
+          <Card>
+            <CardHeader>
+              <CardTitle>Resultados por Partido/Coalición</CardTitle>
+            </CardHeader>
+            <CardContent>
+              <div className="h-[400px]">
+                <ResponsiveContainer width="100%" height="100%">
+                  <BarChart data={chartData} margin={{ top: 20, right: 30, left: 20, bottom: 70 }}>
+                    <CartesianGrid strokeDasharray="3 3" />
+                    <XAxis dataKey="name" angle={-45} textAnchor="end" height={70} interval={0} />
+                    <YAxis />
+                    <Tooltip
+                      formatter={(value: any, name: string) => [
+                        name === "votos" ? `${value.toLocaleString()} votos` : `${value.toFixed(2)}%`,
+                        name === "votos" ? "Votos" : "Porcentaje",
+                      ]}
+                    />
+                    <Legend />
+                    <Bar dataKey="votos" name="Votos" fill="#4f46e5" radius={[4, 4, 0, 0]} />
+                  </BarChart>
+                </ResponsiveContainer>
+              </div>
+            </CardContent>
+          </Card>
+        </TabsContent>
+
+        <TabsContent value="table">
+          <Card>
+            <CardHeader>
+              <CardTitle>Resultados por Partido/Coalición</CardTitle>
+            </CardHeader>
+            <CardContent>
+              <div className="space-y-4">
+                {sortedResults.map(([party, votes]) => {
+                  const percentage = data[`${party}_porcentaje`] || 0
+                  return (
+                    <div key={party} className="flex items-center">
+                      <div className="w-16 md:w-24 font-medium">{party}</div>
+                      <div className="flex-1 mx-4">
+                        <Progress
+                          value={percentage}
+                          className="h-2"
+                          indicatorClassName={`bg-[${getPartyColor(party)}]`}
+                        />
+                      </div>
+                      <div className="w-20 text-right font-medium">{votes.toLocaleString()}</div>
+                      <div className="w-16 text-right text-muted-foreground">{percentage.toFixed(2)}%</div>
+                    </div>
+                  )
+                })}
+              </div>
+            </CardContent>
+          </Card>
+        </TabsContent>
+      </Tabs>
     </div>
   )
 }

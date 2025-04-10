@@ -6,46 +6,36 @@ import { Skeleton } from "@/components/ui/skeleton"
 import { ElectoralResultsChart } from "@/components/metasresultados/electoral-results-chart"
 import { ResultsSummary } from "@/components/metasresultados/results-summary"
 import { CoalitionBuilder } from "@/components/metasresultados/coalition-builder"
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 
 interface ElectionAnalyzerProps {
-  csvUrl: string
+  data: any[]
 }
 
-export function ElectionAnalyzer({ csvUrl }: ElectionAnalyzerProps) {
-  const [data, setData] = useState<any[]>([])
+export function ElectionAnalyzer({ data }: ElectionAnalyzerProps) {
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const [parties, setParties] = useState<string[]>([])
   const [coalitions, setCoalitions] = useState<string[]>([])
   const [results, setResults] = useState<Record<string, any>>({})
 
-  const loadData = useCallback(async () => {
-    setLoading(true)
-    setError(null)
+  // Update the data processing to handle the specific schema
+  useEffect(() => {
+    if (!data || data.length === 0) {
+      setError("No hay datos disponibles para analizar")
+      setLoading(false)
+      return
+    }
 
     try {
-      const response = await fetch(csvUrl)
-      if (!response.ok) {
-        throw new Error(`HTTP error ${response.status}`)
-      }
-      const text = await response.text()
+      setLoading(true)
+      setError(null)
 
-      // Parse CSV text
-      const lines = text.split("\n")
-      const headers = lines[0].split("\t")
-      const parsedData = lines.slice(1).map((line) => {
-        const values = line.split("\t")
-        const row: Record<string, string> = {}
-        headers.forEach((header, index) => {
-          row[header] = values[index]
-        })
-        return row
-      })
+      // Extraer partidos y coaliciones de las columnas
+      const firstRow = data[0]
+      const columns = Object.keys(firstRow)
 
-      setData(parsedData)
-
-      // Extract parties and coalitions
-      const extractedParties = headers.filter(
+      const extractedParties = columns.filter(
         (header) =>
           header !== "SECCION" &&
           header !== "DISTRITO" &&
@@ -53,31 +43,26 @@ export function ElectionAnalyzer({ csvUrl }: ElectionAnalyzerProps) {
           header !== "LOCALIDAD" &&
           header !== "LISTA_NOMINAL",
       )
+
+      // Separar partidos individuales y coaliciones
+      const individualParties = extractedParties.filter(
+        (party) => !party.includes("-") && !party.includes("_") && party !== "NO_REGISTRADAS" && party !== "NULOS",
+      )
+
+      const coalitionParties = extractedParties.filter(
+        (party) => (party.includes("-") || party.includes("_")) && party !== "NO_REGISTRADAS" && party !== "NULOS",
+      )
+
       setParties(extractedParties)
-      setCoalitions(extractedParties.filter((party) => party.includes("-")))
+      setCoalitions(coalitionParties)
 
-      console.log("Data loaded successfully")
-    } catch (e) {
-      setError(e instanceof Error ? e.message : "Unknown error")
-      console.error("Error loading data:", e)
-    } finally {
-      setLoading(false)
-    }
-  }, [csvUrl])
-
-  useEffect(() => {
-    loadData()
-  }, [loadData])
-
-  useEffect(() => {
-    if (data.length > 0) {
       // Calcular totales y porcentajes
       const totals: Record<string, number> = {}
       let totalVotos = 0
       let totalListaNominal = 0
 
       data.forEach((row) => {
-        parties.forEach((party) => {
+        extractedParties.forEach((party) => {
           const votes = Number(row[party])
           if (!isNaN(votes)) {
             totals[party] = (totals[party] || 0) + votes
@@ -99,51 +84,97 @@ export function ElectionAnalyzer({ csvUrl }: ElectionAnalyzerProps) {
         total_secciones: data.length,
       }
 
-      parties.forEach((party) => {
+      extractedParties.forEach((party) => {
         calculatedResults[party] = totals[party] || 0
         calculatedResults[`${party}_porcentaje`] = totalVotos > 0 ? ((totals[party] || 0) / totalVotos) * 100 : 0
       })
 
-      setResults(calculatedResults)
-    }
-  }, [data, parties])
+      // Calcular bloques principales (izquierda vs derecha)
+      const izquierdaTotal =
+        (totals["MORENA"] || 0) +
+        (totals["PT"] || 0) +
+        (totals["PVEM"] || 0) +
+        (totals["PVEM_PT_MORENA"] || 0) +
+        (totals["PVEM_MORENA"] || 0) +
+        (totals["PT_MORENA"] || 0)
 
-  const handleCoalitionResultsChange = (coalitionResults: Record<string, any>) => {
+      const derechaTotal =
+        (totals["PAN"] || 0) +
+        (totals["PRI"] || 0) +
+        (totals["PRD"] || 0) +
+        (totals["PAN-PRI-PRD"] || 0) +
+        (totals["PAN-PRI"] || 0) +
+        (totals["PAN-PRD"] || 0) +
+        (totals["PRI-PRD"] || 0)
+
+      const centroTotal = totals["MC"] || 0
+
+      calculatedResults["bloque_izquierda"] = izquierdaTotal
+      calculatedResults["bloque_derecha"] = derechaTotal
+      calculatedResults["bloque_centro"] = centroTotal
+      calculatedResults["bloque_izquierda_porcentaje"] = totalVotos > 0 ? (izquierdaTotal / totalVotos) * 100 : 0
+      calculatedResults["bloque_derecha_porcentaje"] = totalVotos > 0 ? (derechaTotal / totalVotos) * 100 : 0
+      calculatedResults["bloque_centro_porcentaje"] = totalVotos > 0 ? (centroTotal / totalVotos) * 100 : 0
+
+      setResults(calculatedResults)
+      setLoading(false)
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "Error desconocido al procesar los datos")
+      setLoading(false)
+    }
+  }, [data])
+
+  const handleCoalitionResultsChange = useCallback((coalitionResults: Record<string, any>) => {
     setResults((prevResults) => ({ ...prevResults, ...coalitionResults }))
+  }, [])
+
+  if (loading) {
+    return (
+      <Card>
+        <CardHeader>
+          <CardTitle>Cargando datos...</CardTitle>
+        </CardHeader>
+        <CardContent>
+          <Skeleton className="h-[400px]" />
+        </CardContent>
+      </Card>
+    )
+  }
+
+  if (error) {
+    return (
+      <Card>
+        <CardHeader>
+          <CardTitle>Error</CardTitle>
+        </CardHeader>
+        <CardContent>
+          <p className="text-red-500">{error}</p>
+        </CardContent>
+      </Card>
+    )
   }
 
   return (
     <div className="space-y-6">
-      <div>
-        <h2 className="text-2xl font-bold">Análisis Electoral</h2>
-        <p className="text-muted-foreground">Analiza los resultados electorales y crea escenarios de coalición</p>
-      </div>
+      <Tabs defaultValue="summary" className="space-y-4">
+        <TabsList>
+          <TabsTrigger value="summary">Resumen</TabsTrigger>
+          <TabsTrigger value="coalition">Coaliciones</TabsTrigger>
+          <TabsTrigger value="charts">Gráficos</TabsTrigger>
+        </TabsList>
 
-      {loading ? (
-        <Card>
-          <CardHeader>
-            <CardTitle>Cargando datos...</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <Skeleton className="h-[400px]" />
-          </CardContent>
-        </Card>
-      ) : error ? (
-        <Card>
-          <CardHeader>
-            <CardTitle>Error</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <p className="text-red-500">{error}</p>
-          </CardContent>
-        </Card>
-      ) : (
-        <>
+        <TabsContent value="summary">
           <ResultsSummary data={results} />
+        </TabsContent>
+
+        <TabsContent value="coalition">
           <CoalitionBuilder data={data} parties={parties} onCoalitionResultsChange={handleCoalitionResultsChange} />
+        </TabsContent>
+
+        <TabsContent value="charts">
           <ElectoralResultsChart data={results} parties={parties} coalitions={coalitions} />
-        </>
-      )}
+        </TabsContent>
+      </Tabs>
     </div>
   )
 }

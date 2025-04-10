@@ -1,6 +1,6 @@
 import type React from "react";
 import { Sidebar } from "@/components/sidebar";
-import { getServerSession } from "next-auth/next";
+import { getServerSession } from "next-auth";
 import { authOptions } from "@/auth";
 import { SessionProvider } from "@/components/session-provider";
 import Script from "next/script";

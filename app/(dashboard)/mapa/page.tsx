@@ -1,4 +1,4 @@
-import { getServerSession } from "next-auth/next"
+import { getServerSession } from "next-auth"
 import { authOptions } from "@/auth"
 import { redirect } from "next/navigation"
 import { DistritoMap } from "@/components/mapa/distrito-map"

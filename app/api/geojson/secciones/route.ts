@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server"
 import { promises as fs } from "fs"
 import path from "path"
-import { getServerSession } from "next-auth/next"
+import { getServerSession } from "next-auth"
 import { authOptions } from "@/auth"
 import { db } from "@/lib/db"
 

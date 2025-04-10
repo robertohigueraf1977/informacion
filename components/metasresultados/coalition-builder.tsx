@@ -8,7 +8,8 @@ import { Checkbox } from "@/components/ui/checkbox"
 import { Slider } from "@/components/ui/slider"
 import { Progress } from "@/components/ui/progress"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
-import { Calculator, Target, TrendingUp, Users } from "lucide-react"
+import { Calculator, Target, TrendingUp, Users, Download, Filter } from "lucide-react"
+import { Input } from "@/components/ui/input"
 
 interface CoalitionBuilderProps {
   data: any[]
@@ -41,6 +42,9 @@ export function CoalitionBuilder({ data, parties, onCoalitionResultsChange }: Co
 
   // Estado para el porcentaje objetivo (del 10% al 100%)
   const [targetPercentage, setTargetPercentage] = useState(70)
+
+  // Estado para filtrar secciones
+  const [sectionFilter, setSectionFilter] = useState("")
 
   // Estado para los resultados calculados
   const [results, setResults] = useState<{
@@ -157,6 +161,50 @@ export function CoalitionBuilder({ data, parties, onCoalitionResultsChange }: Co
     })
   }, [])
 
+  // Filtrar secciones para la tabla
+  const filteredSections = sectionFilter
+    ? results.sectionResults.filter((s) => String(s.section).includes(sectionFilter))
+    : results.sectionResults
+
+  // Exportar datos a CSV
+  const exportToCSV = () => {
+    const headers = [
+      "Sección",
+      "Votos Totales",
+      "Votos Coalición",
+      "% Actual",
+      `Objetivo (${targetPercentage}%)`,
+      "% del Total",
+    ]
+
+    const csvData = [
+      headers.join(","),
+      ...results.sectionResults.map((section) =>
+        [
+          section.section,
+          section.totalVotes,
+          section.coalitionVotes,
+          section.percentage.toFixed(1),
+          section.targetVotes,
+          section.targetPercentage.toFixed(1),
+        ].join(","),
+      ),
+    ].join("\n")
+
+    const blob = new Blob([csvData], { type: "text/csv;charset=utf-8;" })
+    const url = URL.createObjectURL(blob)
+    const link = document.createElement("a")
+    link.setAttribute("href", url)
+    link.setAttribute(
+      "download",
+      `coalicion-${selectedParties.join("-")}-${new Date().toISOString().split("T")[0]}.csv`,
+    )
+    link.style.visibility = "hidden"
+    document.body.appendChild(link)
+    link.click()
+    document.body.removeChild(link)
+  }
+
   return (
     <div className="space-y-6">
       <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
@@ -264,9 +312,26 @@ export function CoalitionBuilder({ data, parties, onCoalitionResultsChange }: Co
 
       {/* Tabla de resultados por sección */}
       <Card>
-        <CardHeader>
-          <CardTitle>Resultados por Sección</CardTitle>
-          <CardDescription>Detalle de votos y objetivos por sección electoral</CardDescription>
+        <CardHeader className="flex flex-row items-center justify-between">
+          <div>
+            <CardTitle>Resultados por Sección</CardTitle>
+            <CardDescription>Detalle de votos y objetivos por sección electoral</CardDescription>
+          </div>
+          <div className="flex items-center space-x-2">
+            <div className="relative">
+              <Filter className="h-4 w-4 absolute left-2 top-2.5 text-muted-foreground" />
+              <Input
+                placeholder="Filtrar por sección"
+                value={sectionFilter}
+                onChange={(e) => setSectionFilter(e.target.value)}
+                className="pl-8 w-[200px]"
+              />
+            </div>
+            <Button variant="outline" onClick={exportToCSV} className="flex items-center gap-2">
+              <Download className="h-4 w-4" />
+              Exportar CSV
+            </Button>
+          </div>
         </CardHeader>
         <CardContent>
           <div className="rounded-md border">
@@ -282,20 +347,28 @@ export function CoalitionBuilder({ data, parties, onCoalitionResultsChange }: Co
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {results.sectionResults.slice(0, 20).map((section, index) => (
-                  <TableRow key={`section-${section.section}-${index}`}>
-                    <TableCell className="font-medium">{section.section}</TableCell>
-                    <TableCell className="text-right">{section.totalVotes.toLocaleString()}</TableCell>
-                    <TableCell className="text-right">{section.coalitionVotes.toLocaleString()}</TableCell>
-                    <TableCell className="text-right">{section.percentage.toFixed(1)}%</TableCell>
-                    <TableCell className="text-right">{section.targetVotes.toLocaleString()}</TableCell>
-                    <TableCell className="text-right">{section.targetPercentage.toFixed(1)}%</TableCell>
+                {filteredSections.length === 0 ? (
+                  <TableRow>
+                    <TableCell colSpan={6} className="text-center py-4">
+                      No se encontraron resultados
+                    </TableCell>
                   </TableRow>
-                ))}
-                {results.sectionResults.length > 20 && (
+                ) : (
+                  filteredSections.slice(0, 20).map((section, index) => (
+                    <TableRow key={`section-${section.section}-${index}`}>
+                      <TableCell className="font-medium">{section.section}</TableCell>
+                      <TableCell className="text-right">{section.totalVotes.toLocaleString()}</TableCell>
+                      <TableCell className="text-right">{section.coalitionVotes.toLocaleString()}</TableCell>
+                      <TableCell className="text-right">{section.percentage.toFixed(1)}%</TableCell>
+                      <TableCell className="text-right">{section.targetVotes.toLocaleString()}</TableCell>
+                      <TableCell className="text-right">{section.targetPercentage.toFixed(1)}%</TableCell>
+                    </TableRow>
+                  ))
+                )}
+                {filteredSections.length > 20 && (
                   <TableRow key="pagination-summary">
                     <TableCell colSpan={6} className="text-center text-muted-foreground">
-                      Mostrando 20 de {results.sectionResults.length} secciones
+                      Mostrando 20 de {filteredSections.length} secciones
                     </TableCell>
                   </TableRow>
                 )}
@@ -307,7 +380,7 @@ export function CoalitionBuilder({ data, parties, onCoalitionResultsChange }: Co
           <p className="text-sm text-muted-foreground">
             Las secciones están ordenadas por número de votos de la coalición (de mayor a menor).
           </p>
-          <Button variant="outline" className="flex items-center gap-2">
+          <Button variant="outline" className="flex items-center gap-2" onClick={exportToCSV}>
             <Calculator className="h-4 w-4" />
             Exportar Análisis
           </Button>
