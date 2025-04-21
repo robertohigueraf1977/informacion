@@ -28,25 +28,25 @@ export function ElectoralResultsChart({ data, parties, coalitions }: ElectoralRe
   const [chartType, setChartType] = useState<string>("bar")
   const [dataFilter, setDataFilter] = useState<string>("all")
 
-  // Definir la paleta de colores
+  // Definir la paleta de colores con tema violeta
   const partyColors: Record<string, string> = {
-    PAN: "#1e40af", // azul oscuro
-    PRI: "#dc2626", // rojo
-    PRD: "#f59e0b", // amarillo
-    PVEM: "#15803d", // verde
-    PT: "#b91c1c", // rojo oscuro
-    MC: "#ea580c", // naranja
-    MORENA: "#7e22ce", // morado
-    "PAN-PRI-PRD": "#6366f1", // indigo
-    PVEM_PT_MORENA: "#a855f7", // púrpura
-    PVEM_PT: "#059669", // verde-teal
-    PVEM_MORENA: "#0d9488", // teal
-    PT_MORENA: "#9333ea", // púrpura más claro
-    "PAN-PRI": "#818cf8", // indigo claro
-    "PAN-PRD": "#93c5fd", // azul claro
-    "PRI-PRD": "#fca5a5", // rojo claro
-    NO_REGISTRADAS: "#374151", // gris oscuro
-    NULOS: "#1f2937", // casi negro
+    PAN: "#4c51bf", // indigo oscuro
+    PRI: "#e53e3e", // rojo
+    PRD: "#d69e2e", // amarillo
+    PVEM: "#38a169", // verde
+    PT: "#c53030", // rojo oscuro
+    MC: "#dd6b20", // naranja
+    MORENA: "#805ad5", // morado
+    "PAN-PRI-PRD": "#667eea", // indigo
+    PVEM_PT_MORENA: "#9f7aea", // púrpura
+    PVEM_PT: "#38a169", // verde-teal
+    PVEM_MORENA: "#319795", // teal
+    PT_MORENA: "#b794f4", // púrpura más claro
+    "PAN-PRI": "#7f9cf5", // indigo claro
+    "PAN-PRD": "#a3bffa", // azul claro
+    "PRI-PRD": "#fc8181", // rojo claro
+    NO_REGISTRADAS: "#4a5568", // gris oscuro
+    NULOS: "#2d3748", // casi negro
   }
 
   // Preparar datos para el gráfico
@@ -80,15 +80,15 @@ export function ElectoralResultsChart({ data, parties, coalitions }: ElectoralRe
 
   return (
     <div className="space-y-6">
-      <Card>
-        <CardHeader className="flex flex-row items-center justify-between">
+      <Card className="border-accent-soft">
+        <CardHeader className="flex flex-row items-center justify-between bg-secondary-soft rounded-t-lg">
           <div>
-            <CardTitle>Resultados Electorales</CardTitle>
+            <CardTitle className="text-primary">Resultados Electorales</CardTitle>
             <CardDescription>Visualización de votos por partido/coalición</CardDescription>
           </div>
           <div className="flex items-center space-x-2">
             <Select value={dataFilter} onValueChange={setDataFilter}>
-              <SelectTrigger className="w-[180px]">
+              <SelectTrigger className="w-[180px] border-accent-soft">
                 <SelectValue placeholder="Filtrar datos" />
               </SelectTrigger>
               <SelectContent>
@@ -101,17 +101,31 @@ export function ElectoralResultsChart({ data, parties, coalitions }: ElectoralRe
         </CardHeader>
         <CardContent>
           <Tabs value={chartType} onValueChange={setChartType} className="space-y-4">
-            <TabsList className="grid w-full grid-cols-4">
-              <TabsTrigger value="bar">Barras</TabsTrigger>
-              <TabsTrigger value="pie">Pastel</TabsTrigger>
-              <TabsTrigger value="percentage">Porcentajes</TabsTrigger>
-              <TabsTrigger value="blocks">Bloques</TabsTrigger>
+            <TabsList className="grid w-full grid-cols-3 bg-secondary">
+              <TabsTrigger
+                value="bar"
+                className="data-[state=active]:bg-primary data-[state=active]:text-primary-foreground"
+              >
+                Barras
+              </TabsTrigger>
+              <TabsTrigger
+                value="pie"
+                className="data-[state=active]:bg-primary data-[state=active]:text-primary-foreground"
+              >
+                Pastel
+              </TabsTrigger>
+              <TabsTrigger
+                value="percentage"
+                className="data-[state=active]:bg-primary data-[state=active]:text-primary-foreground"
+              >
+                Porcentajes
+              </TabsTrigger>
             </TabsList>
 
             <TabsContent value="bar" className="h-[500px]">
               <ResponsiveContainer width="100%" height="100%">
                 <BarChart data={chartData} margin={{ top: 20, right: 30, left: 20, bottom: 70 }}>
-                  <CartesianGrid strokeDasharray="3 3" />
+                  <CartesianGrid strokeDasharray="3 3" stroke="#e9d8fd" />
                   <XAxis dataKey="name" angle={-45} textAnchor="end" height={70} interval={0} tick={{ fontSize: 12 }} />
                   <YAxis />
                   <Tooltip
@@ -119,13 +133,13 @@ export function ElectoralResultsChart({ data, parties, coalitions }: ElectoralRe
                     contentStyle={{
                       backgroundColor: "rgba(255, 255, 255, 0.9)",
                       borderRadius: "6px",
-                      border: "1px solid #e2e8f0",
+                      border: "1px solid #e9d8fd",
                     }}
                   />
                   <Legend />
                   <Bar dataKey="votos" name="Votos" radius={[4, 4, 0, 0]} barSize={30}>
                     {chartData.map((entry, index) => (
-                      <Cell key={`cell-${index}`} fill={partyColors[entry.name] || "#6b7280"} fillOpacity={0.8} />
+                      <Cell key={`cell-${index}`} fill={partyColors[entry.name] || "#9f7aea"} fillOpacity={0.8} />
                     ))}
                   </Bar>
                 </BarChart>
@@ -147,7 +161,7 @@ export function ElectoralResultsChart({ data, parties, coalitions }: ElectoralRe
                     label={({ name, percent }) => `${name}: ${(percent * 100).toFixed(1)}%`}
                   >
                     {pieData.map((entry, index) => (
-                      <Cell key={`cell-${index}`} fill={partyColors[entry.name] || "#6b7280"} />
+                      <Cell key={`cell-${index}`} fill={partyColors[entry.name] || "#9f7aea"} />
                     ))}
                   </Pie>
                   <Tooltip
@@ -155,7 +169,7 @@ export function ElectoralResultsChart({ data, parties, coalitions }: ElectoralRe
                     contentStyle={{
                       backgroundColor: "rgba(255, 255, 255, 0.9)",
                       borderRadius: "6px",
-                      border: "1px solid #e2e8f0",
+                      border: "1px solid #e9d8fd",
                     }}
                   />
                   <Legend />
@@ -166,7 +180,7 @@ export function ElectoralResultsChart({ data, parties, coalitions }: ElectoralRe
             <TabsContent value="percentage" className="h-[500px]">
               <ResponsiveContainer width="100%" height="100%">
                 <BarChart data={chartData} margin={{ top: 20, right: 30, left: 20, bottom: 70 }}>
-                  <CartesianGrid strokeDasharray="3 3" />
+                  <CartesianGrid strokeDasharray="3 3" stroke="#e9d8fd" />
                   <XAxis dataKey="name" angle={-45} textAnchor="end" height={70} interval={0} tick={{ fontSize: 12 }} />
                   <YAxis />
                   <Tooltip
@@ -174,61 +188,14 @@ export function ElectoralResultsChart({ data, parties, coalitions }: ElectoralRe
                     contentStyle={{
                       backgroundColor: "rgba(255, 255, 255, 0.9)",
                       borderRadius: "6px",
-                      border: "1px solid #e2e8f0",
+                      border: "1px solid #e9d8fd",
                     }}
                   />
                   <Legend />
                   <Bar dataKey="porcentaje" name="Porcentaje" radius={[4, 4, 0, 0]} barSize={30}>
                     {chartData.map((entry, index) => (
-                      <Cell key={`cell-${index}`} fill={partyColors[entry.name] || "#6b7280"} fillOpacity={0.8} />
+                      <Cell key={`cell-${index}`} fill={partyColors[entry.name] || "#9f7aea"} fillOpacity={0.8} />
                     ))}
-                  </Bar>
-                </BarChart>
-              </ResponsiveContainer>
-            </TabsContent>
-
-            <TabsContent value="blocks" className="h-[500px]">
-              <ResponsiveContainer width="100%" height="100%">
-                <BarChart
-                  data={[
-                    {
-                      name: "Izquierda",
-                      votos: data.bloque_izquierda || 0,
-                      porcentaje: data.bloque_izquierda_porcentaje || 0,
-                    },
-                    {
-                      name: "Derecha",
-                      votos: data.bloque_derecha || 0,
-                      porcentaje: data.bloque_derecha_porcentaje || 0,
-                    },
-                    { name: "Centro", votos: data.bloque_centro || 0, porcentaje: data.bloque_centro_porcentaje || 0 },
-                    { name: "Nulos", votos: data.NULOS || 0, porcentaje: data.NULOS_porcentaje || 0 },
-                    {
-                      name: "No Registrados",
-                      votos: data.NO_REGISTRADAS || 0,
-                      porcentaje: data.NO_REGISTRADAS_porcentaje || 0,
-                    },
-                  ]}
-                  margin={{ top: 20, right: 30, left: 20, bottom: 70 }}
-                >
-                  <CartesianGrid strokeDasharray="3 3" />
-                  <XAxis dataKey="name" />
-                  <YAxis />
-                  <Tooltip
-                    formatter={(value: any) => [`${value.toLocaleString()} votos`, "Votos"]}
-                    contentStyle={{
-                      backgroundColor: "rgba(255, 255, 255, 0.9)",
-                      borderRadius: "6px",
-                      border: "1px solid #e2e8f0",
-                    }}
-                  />
-                  <Legend />
-                  <Bar dataKey="votos" name="Votos" radius={[4, 4, 0, 0]} barSize={60}>
-                    <Cell fill="#7e22ce" /> {/* Izquierda - morado */}
-                    <Cell fill="#1e40af" /> {/* Derecha - azul */}
-                    <Cell fill="#ea580c" /> {/* Centro - naranja */}
-                    <Cell fill="#1f2937" /> {/* Nulos - casi negro */}
-                    <Cell fill="#374151" /> {/* No Registrados - gris oscuro */}
                   </Bar>
                 </BarChart>
               </ResponsiveContainer>

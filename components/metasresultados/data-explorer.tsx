@@ -1,13 +1,18 @@
 "use client"
 
 import { useState, useMemo } from "react"
-import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card"
+import { CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
 import { Button } from "@/components/ui/button"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
-import { Download, SortAsc, SortDesc, Search } from "lucide-react"
+import { Download, SortAsc, SortDesc, Search, Info, ChevronLeft, ChevronRight } from "lucide-react"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
+import { CardSpotlight } from "@/components/ui/card-spotlight"
+import { Badge } from "@/components/ui/badge"
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip"
+import { StatCard } from "@/components/ui/stat-card"
+import { motion } from "framer-motion"
 
 interface DataExplorerProps {
   data: any[]
@@ -160,30 +165,40 @@ export function DataExplorer({ data }: DataExplorerProps) {
   }, [columns])
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-6 animate-in fade-in-50">
       <Tabs defaultValue="table" className="space-y-4">
-        <TabsList>
-          <TabsTrigger value="table">Tabla de Datos</TabsTrigger>
-          <TabsTrigger value="stats">Estadísticas</TabsTrigger>
+        <TabsList className="bg-background border w-full p-1 rounded-lg">
+          <TabsTrigger
+            value="table"
+            className="data-[state=active]:bg-primary data-[state=active]:text-primary-foreground rounded-md py-2 flex-1"
+          >
+            Tabla de Datos
+          </TabsTrigger>
+          <TabsTrigger
+            value="stats"
+            className="data-[state=active]:bg-primary data-[state=active]:text-primary-foreground rounded-md py-2 flex-1"
+          >
+            Estadísticas
+          </TabsTrigger>
         </TabsList>
 
         <TabsContent value="table">
-          <Card>
-            <CardHeader className="flex flex-row items-center justify-between">
+          <CardSpotlight>
+            <CardHeader className="flex flex-row items-center justify-between bg-secondary-soft rounded-t-lg">
               <div>
-                <CardTitle>Explorador de Datos</CardTitle>
+                <CardTitle className="text-primary">Explorador de Datos</CardTitle>
                 <CardDescription>
                   {filteredData.length} registros encontrados de {data.length} totales
                 </CardDescription>
               </div>
-              <div className="flex items-center space-x-2">
+              <div className="flex flex-wrap items-center gap-2">
                 <div className="relative">
                   <Search className="h-4 w-4 absolute left-2 top-2.5 text-muted-foreground" />
                   <Input
                     placeholder="Buscar..."
                     value={searchTerm}
                     onChange={(e) => setSearchTerm(e.target.value)}
-                    className="pl-8 w-[200px]"
+                    className="pl-8 w-[200px] border-accent-soft"
                   />
                 </div>
                 <Button variant="outline" onClick={exportToCSV} className="flex items-center gap-2">
@@ -193,9 +208,9 @@ export function DataExplorer({ data }: DataExplorerProps) {
               </div>
             </CardHeader>
             <CardContent>
-              <div className="flex items-center space-x-2 mb-4">
+              <div className="flex flex-wrap items-center gap-2 mb-4">
                 <Select value={sortField} onValueChange={setSortField}>
-                  <SelectTrigger className="w-[180px]">
+                  <SelectTrigger className="w-[180px] border-accent-soft">
                     <SelectValue placeholder="Ordenar por" />
                   </SelectTrigger>
                   <SelectContent>
@@ -206,20 +221,24 @@ export function DataExplorer({ data }: DataExplorerProps) {
                     ))}
                   </SelectContent>
                 </Select>
-                <Button variant="outline" size="icon" onClick={toggleSortDirection}>
+                <Button variant="outline" size="icon" onClick={toggleSortDirection} className="border-accent-soft">
                   {sortDirection === "asc" ? <SortAsc className="h-4 w-4" /> : <SortDesc className="h-4 w-4" />}
                 </Button>
+
+                <Badge className="ml-auto">
+                  {filteredData.length} de {data.length} registros
+                </Badge>
               </div>
 
-              <div className="rounded-md border overflow-hidden">
+              <div className="rounded-md border border-accent-soft overflow-hidden">
                 <div className="overflow-x-auto">
                   <Table>
-                    <TableHeader>
+                    <TableHeader className="bg-secondary/50 sticky top-0">
                       <TableRow>
                         {columns.map((column) => (
                           <TableHead
                             key={column}
-                            className={`${column === sortField ? "bg-muted" : ""}`}
+                            className={`${column === sortField ? "bg-secondary" : ""} cursor-pointer hover:bg-secondary transition-colors`}
                             onClick={() => {
                               if (column === sortField) {
                                 toggleSortDirection()
@@ -229,7 +248,7 @@ export function DataExplorer({ data }: DataExplorerProps) {
                               }
                             }}
                           >
-                            <div className="flex items-center cursor-pointer">
+                            <div className="flex items-center">
                               {column}
                               {column === sortField && (
                                 <span className="ml-1">
@@ -248,15 +267,23 @@ export function DataExplorer({ data }: DataExplorerProps) {
                     <TableBody>
                       {paginatedData.length === 0 ? (
                         <TableRow>
-                          <TableCell colSpan={columns.length} className="text-center py-4">
-                            No se encontraron resultados
+                          <TableCell colSpan={columns.length} className="text-center py-8">
+                            <div className="flex flex-col items-center justify-center text-muted-foreground">
+                              <Info className="h-8 w-8 mb-2" />
+                              <p>No se encontraron resultados para tu búsqueda</p>
+                              {searchTerm && (
+                                <Button variant="link" onClick={() => setSearchTerm("")} className="mt-2">
+                                  Borrar filtro
+                                </Button>
+                              )}
+                            </div>
                           </TableCell>
                         </TableRow>
                       ) : (
                         paginatedData.map((row, rowIndex) => (
-                          <TableRow key={`row-${rowIndex}`}>
+                          <TableRow key={`row-${rowIndex}`} className="hover:bg-secondary/20 transition-colors">
                             {columns.map((column) => (
-                              <TableCell key={`cell-${rowIndex}-${column}`}>
+                              <TableCell key={`cell-${rowIndex}-${column}`} className="py-2">
                                 {row[column] !== undefined && row[column] !== null ? row[column] : "-"}
                               </TableCell>
                             ))}
@@ -268,10 +295,10 @@ export function DataExplorer({ data }: DataExplorerProps) {
                 </div>
               </div>
 
-              <div className="flex items-center justify-between mt-4">
-                <div className="flex items-center space-x-2">
-                  <p className="text-sm text-muted-foreground">
-                    Mostrando {(currentPage - 1) * rowsPerPage + 1} a{" "}
+              <div className="flex flex-wrap items-center justify-between gap-4 mt-4">
+                <div className="flex items-center gap-2">
+                  <p className="text-sm text-muted-foreground whitespace-nowrap">
+                    Mostrando {filteredData.length > 0 ? (currentPage - 1) * rowsPerPage + 1 : 0} a{" "}
                     {Math.min(currentPage * rowsPerPage, filteredData.length)} de {filteredData.length} registros
                   </p>
                   <Select
@@ -281,7 +308,7 @@ export function DataExplorer({ data }: DataExplorerProps) {
                       setCurrentPage(1)
                     }}
                   >
-                    <SelectTrigger className="w-[80px]">
+                    <SelectTrigger className="w-[80px] border-accent-soft">
                       <SelectValue placeholder="10" />
                     </SelectTrigger>
                     <SelectContent>
@@ -293,130 +320,159 @@ export function DataExplorer({ data }: DataExplorerProps) {
                   </Select>
                 </div>
 
-                <div className="flex items-center space-x-2">
-                  <Button variant="outline" size="sm" onClick={() => setCurrentPage(1)} disabled={currentPage === 1}>
-                    Primera
+                <div className="flex items-center gap-1 ml-auto">
+                  <Button
+                    variant="outline"
+                    size="icon"
+                    onClick={() => setCurrentPage(1)}
+                    disabled={currentPage === 1}
+                    className="h-8 w-8"
+                  >
+                    <ChevronLeft className="h-4 w-4" />
+                    <ChevronLeft className="h-4 w-4 -ml-2" />
                   </Button>
                   <Button
                     variant="outline"
-                    size="sm"
+                    size="icon"
                     onClick={() => setCurrentPage((prev) => Math.max(prev - 1, 1))}
                     disabled={currentPage === 1}
+                    className="h-8 w-8"
                   >
-                    Anterior
+                    <ChevronLeft className="h-4 w-4" />
                   </Button>
-                  <span className="text-sm">
-                    Página {currentPage} de {totalPages}
+                  <span className="text-sm px-2">
+                    Página {currentPage} de {totalPages || 1}
                   </span>
                   <Button
                     variant="outline"
-                    size="sm"
+                    size="icon"
                     onClick={() => setCurrentPage((prev) => Math.min(prev + 1, totalPages))}
-                    disabled={currentPage === totalPages}
+                    disabled={currentPage === totalPages || totalPages === 0}
+                    className="h-8 w-8"
                   >
-                    Siguiente
+                    <ChevronRight className="h-4 w-4" />
                   </Button>
                   <Button
                     variant="outline"
-                    size="sm"
+                    size="icon"
                     onClick={() => setCurrentPage(totalPages)}
-                    disabled={currentPage === totalPages}
+                    disabled={currentPage === totalPages || totalPages === 0}
+                    className="h-8 w-8"
                   >
-                    Última
+                    <ChevronRight className="h-4 w-4" />
+                    <ChevronRight className="h-4 w-4 -ml-2" />
                   </Button>
                 </div>
               </div>
             </CardContent>
-          </Card>
+          </CardSpotlight>
         </TabsContent>
 
         <TabsContent value="stats">
-          <Card>
-            <CardHeader>
-              <CardTitle>Estadísticas por Partido/Coalición</CardTitle>
+          <CardSpotlight>
+            <CardHeader className="bg-secondary-soft rounded-t-lg">
+              <CardTitle className="text-primary">Estadísticas por Partido/Coalición</CardTitle>
               <CardDescription>Selecciona un partido para ver sus estadísticas</CardDescription>
             </CardHeader>
             <CardContent>
               <div className="flex items-center space-x-2 mb-6">
-                <Select value={selectedParty || ""} onValueChange={setSelectedParty}>
-                  <SelectTrigger className="w-[250px]">
-                    <SelectValue placeholder="Seleccionar partido/coalición" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {parties.map((party) => (
-                      <SelectItem key={party} value={party}>
-                        {party}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
+                <TooltipProvider>
+                  <Tooltip>
+                    <TooltipTrigger asChild>
+                      <div>
+                        <Select value={selectedParty || ""} onValueChange={setSelectedParty}>
+                          <SelectTrigger className="w-[250px] border-accent-soft">
+                            <SelectValue placeholder="Seleccionar partido/coalición" />
+                          </SelectTrigger>
+                          <SelectContent>
+                            {parties.map((party) => (
+                              <SelectItem key={party} value={party}>
+                                {party}
+                              </SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                      </div>
+                    </TooltipTrigger>
+                    <TooltipContent>
+                      <p>Selecciona un partido o coalición para ver sus estadísticas detalladas</p>
+                    </TooltipContent>
+                  </Tooltip>
+                </TooltipProvider>
               </div>
 
               {selectedParty && columnStats ? (
-                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-                  <Card>
-                    <CardHeader className="py-2">
-                      <CardTitle className="text-sm">Total de Votos</CardTitle>
-                    </CardHeader>
-                    <CardContent>
-                      <p className="text-2xl font-bold">{columnStats.sum.toLocaleString()}</p>
-                    </CardContent>
-                  </Card>
+                <motion.div
+                  className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4"
+                  initial={{ opacity: 0, y: 20 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  transition={{ duration: 0.3 }}
+                >
+                  <CardSpotlight containerClassName="h-full">
+                    <StatCard
+                      title="Total de Votos"
+                      value={columnStats.sum.toLocaleString()}
+                      description={`Para ${selectedParty}`}
+                      className="border-0 h-full"
+                    />
+                  </CardSpotlight>
 
-                  <Card>
-                    <CardHeader className="py-2">
-                      <CardTitle className="text-sm">Promedio por Sección</CardTitle>
-                    </CardHeader>
-                    <CardContent>
-                      <p className="text-2xl font-bold">{columnStats.avg.toFixed(2)}</p>
-                    </CardContent>
-                  </Card>
+                  <CardSpotlight containerClassName="h-full">
+                    <StatCard
+                      title="Promedio por Sección"
+                      value={columnStats.avg.toFixed(2)}
+                      description="Votos promedio por sección"
+                      className="border-0 h-full"
+                    />
+                  </CardSpotlight>
 
-                  <Card>
-                    <CardHeader className="py-2">
-                      <CardTitle className="text-sm">Mediana</CardTitle>
-                    </CardHeader>
-                    <CardContent>
-                      <p className="text-2xl font-bold">{columnStats.median.toFixed(2)}</p>
-                    </CardContent>
-                  </Card>
+                  <CardSpotlight containerClassName="h-full">
+                    <StatCard
+                      title="Mediana"
+                      value={columnStats.median.toFixed(2)}
+                      description="Valor central de la distribución"
+                      className="border-0 h-full"
+                    />
+                  </CardSpotlight>
 
-                  <Card>
-                    <CardHeader className="py-2">
-                      <CardTitle className="text-sm">Secciones con Datos</CardTitle>
-                    </CardHeader>
-                    <CardContent>
-                      <p className="text-2xl font-bold">{columnStats.count.toLocaleString()}</p>
-                    </CardContent>
-                  </Card>
+                  <CardSpotlight containerClassName="h-full">
+                    <StatCard
+                      title="Secciones con Datos"
+                      value={columnStats.count.toLocaleString()}
+                      description={`De ${data.length} secciones totales`}
+                      className="border-0 h-full"
+                    />
+                  </CardSpotlight>
 
-                  <Card>
-                    <CardHeader className="py-2">
-                      <CardTitle className="text-sm">Valor Máximo</CardTitle>
-                    </CardHeader>
-                    <CardContent>
-                      <p className="text-2xl font-bold">{columnStats.max.toLocaleString()}</p>
-                      <p className="text-sm text-muted-foreground">Sección: {columnStats.maxSection}</p>
-                    </CardContent>
-                  </Card>
+                  <CardSpotlight containerClassName="h-full">
+                    <StatCard
+                      title="Valor Máximo"
+                      value={columnStats.max.toLocaleString()}
+                      description={`Sección: ${columnStats.maxSection}`}
+                      className="border-0 h-full"
+                    />
+                  </CardSpotlight>
 
-                  <Card>
-                    <CardHeader className="py-2">
-                      <CardTitle className="text-sm">Valor Mínimo</CardTitle>
-                    </CardHeader>
-                    <CardContent>
-                      <p className="text-2xl font-bold">{columnStats.min.toLocaleString()}</p>
-                      <p className="text-sm text-muted-foreground">Sección: {columnStats.minSection}</p>
-                    </CardContent>
-                  </Card>
-                </div>
+                  <CardSpotlight containerClassName="h-full">
+                    <StatCard
+                      title="Valor Mínimo"
+                      value={columnStats.min.toLocaleString()}
+                      description={`Sección: ${columnStats.minSection}`}
+                      className="border-0 h-full"
+                    />
+                  </CardSpotlight>
+                </motion.div>
               ) : (
-                <div className="text-center py-8 text-muted-foreground">
-                  Selecciona un partido o coalición para ver sus estadísticas
+                <div className="text-center py-16 text-muted-foreground">
+                  <Info className="h-12 w-12 mx-auto mb-4 opacity-20" />
+                  <p className="text-lg">Selecciona un partido o coalición para ver sus estadísticas</p>
+                  <p className="text-sm mt-2 max-w-md mx-auto">
+                    Las estadísticas te permitirán entender mejor la distribución de votos por sección
+                  </p>
                 </div>
               )}
             </CardContent>
-          </Card>
+          </CardSpotlight>
         </TabsContent>
       </Tabs>
     </div>

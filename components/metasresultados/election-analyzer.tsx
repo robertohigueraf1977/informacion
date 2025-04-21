@@ -7,6 +7,8 @@ import { ElectoralResultsChart } from "@/components/metasresultados/electoral-re
 import { ResultsSummary } from "@/components/metasresultados/results-summary"
 import { CoalitionBuilder } from "@/components/metasresultados/coalition-builder"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
+import { motion } from "framer-motion"
+import { BarChart3, Calculator, PieChart } from "lucide-react"
 
 interface ElectionAnalyzerProps {
   data: any[]
@@ -135,7 +137,16 @@ export function ElectionAnalyzer({ data }: ElectionAnalyzerProps) {
           <CardTitle>Cargando datos...</CardTitle>
         </CardHeader>
         <CardContent>
-          <Skeleton className="h-[400px]" />
+          <div className="space-y-4">
+            <Skeleton className="h-[100px] w-full" />
+            <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+              <Skeleton className="h-[120px]" />
+              <Skeleton className="h-[120px]" />
+              <Skeleton className="h-[120px]" />
+              <Skeleton className="h-[120px]" />
+            </div>
+            <Skeleton className="h-[300px]" />
+          </div>
         </CardContent>
       </Card>
     )
@@ -156,23 +167,47 @@ export function ElectionAnalyzer({ data }: ElectionAnalyzerProps) {
 
   return (
     <div className="space-y-6">
-      <Tabs defaultValue="summary" className="space-y-4">
-        <TabsList>
-          <TabsTrigger value="summary">Resumen</TabsTrigger>
-          <TabsTrigger value="coalition">Coaliciones</TabsTrigger>
-          <TabsTrigger value="charts">Gráficos</TabsTrigger>
+      <Tabs defaultValue="summary" className="space-y-6">
+        <TabsList className="bg-background border w-full p-1 rounded-lg">
+          <TabsTrigger
+            value="summary"
+            className="data-[state=active]:bg-primary data-[state=active]:text-primary-foreground flex-1 rounded-md py-2"
+          >
+            <PieChart className="h-4 w-4 mr-2" />
+            Resumen
+          </TabsTrigger>
+          <TabsTrigger
+            value="charts"
+            className="data-[state=active]:bg-primary data-[state=active]:text-primary-foreground flex-1 rounded-md py-2"
+          >
+            <BarChart3 className="h-4 w-4 mr-2" />
+            Gráficos
+          </TabsTrigger>
+          <TabsTrigger
+            value="coalition"
+            className="data-[state=active]:bg-primary data-[state=active]:text-primary-foreground flex-1 rounded-md py-2"
+          >
+            <Calculator className="h-4 w-4 mr-2" />
+            Coaliciones
+          </TabsTrigger>
         </TabsList>
 
         <TabsContent value="summary">
-          <ResultsSummary data={results} />
-        </TabsContent>
-
-        <TabsContent value="coalition">
-          <CoalitionBuilder data={data} parties={parties} onCoalitionResultsChange={handleCoalitionResultsChange} />
+          <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.3 }}>
+            <ResultsSummary data={results} />
+          </motion.div>
         </TabsContent>
 
         <TabsContent value="charts">
-          <ElectoralResultsChart data={results} parties={parties} coalitions={coalitions} />
+          <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.3 }}>
+            <ElectoralResultsChart data={results} parties={parties} coalitions={coalitions} />
+          </motion.div>
+        </TabsContent>
+
+        <TabsContent value="coalition">
+          <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.3 }}>
+            <CoalitionBuilder data={data} parties={parties} onCoalitionResultsChange={handleCoalitionResultsChange} />
+          </motion.div>
         </TabsContent>
       </Tabs>
     </div>

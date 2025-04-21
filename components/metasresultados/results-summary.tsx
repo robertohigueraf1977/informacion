@@ -1,32 +1,36 @@
 "use client"
 
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
+import { AnimatedCounter } from "@/components/ui/animated-counter"
+import { CardSpotlight } from "@/components/ui/card-spotlight"
+import { StatCard } from "@/components/ui/stat-card"
+import { CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Progress } from "@/components/ui/progress"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
-import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer } from "recharts"
+import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer, Cell } from "recharts"
+import { ClipboardList, UserCheck, Vote, VoteIcon } from "lucide-react"
 
 interface ResultsSummaryProps {
   data: Record<string, number>
 }
 
 export function ResultsSummary({ data }: ResultsSummaryProps) {
-  // Definir la paleta de colores
+  // Definir la paleta de colores con tema violeta
   const partyColors: Record<string, string> = {
-    PAN: "#1e40af", // azul oscuro
-    PRI: "#dc2626", // rojo
-    PRD: "#f59e0b", // amarillo
-    PVEM: "#15803d", // verde
-    PT: "#b91c1c", // rojo oscuro
-    MC: "#ea580c", // naranja
-    MORENA: "#7e22ce", // morado
-    "PAN-PRI-PRD": "#6366f1", // indigo
-    PVEM_PT_MORENA: "#a855f7", // púrpura
-    NO_REGISTRADAS: "#374151", // gris oscuro
-    NULOS: "#1f2937", // casi negro
+    PAN: "#4c51bf", // indigo oscuro
+    PRI: "#e53e3e", // rojo
+    PRD: "#d69e2e", // amarillo
+    PVEM: "#38a169", // verde
+    PT: "#c53030", // rojo oscuro
+    MC: "#dd6b20", // naranja
+    MORENA: "#805ad5", // morado
+    "PAN-PRI-PRD": "#667eea", // indigo
+    PVEM_PT_MORENA: "#9f7aea", // púrpura
+    NO_REGISTRADAS: "#4a5568", // gris oscuro
+    NULOS: "#2d3748", // casi negro
   }
 
   const getPartyColor = (party: string): string => {
-    return partyColors[party] || "#9ca3af" // Default to gray if not found
+    return partyColors[party] || "#a78bfa" // Default to violet if not found
   }
 
   // Ordenar partidos y coaliciones por número de votos (de mayor a menor)
@@ -37,10 +41,13 @@ export function ResultsSummary({ data }: ResultsSummaryProps) {
         key !== "total_votos" &&
         key !== "total_secciones" &&
         key !== "total_lista_nominal" &&
-        key !== "participacion",
+        key !== "participacion" &&
+        !key.includes("bloque_") &&
+        key !== "NULOS" &&
+        key !== "NO_REGISTRADAS",
     )
     .sort((a, b) => b[1] - a[1])
-    .slice(0, 10) // Mostrar solo los 10 primeros
+    .slice(0, 8) // Mostrar solo los primeros
 
   // Preparar datos para el gráfico
   const chartData = sortedResults.map(([party, votes]) => ({
@@ -50,121 +57,103 @@ export function ResultsSummary({ data }: ResultsSummaryProps) {
   }))
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-6 animate-in fade-in-50">
       <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
-        <Card>
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Total de Votos</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold">{data.total_votos?.toLocaleString() || 0}</div>
-            <p className="text-xs text-muted-foreground">
-              De {data.total_lista_nominal?.toLocaleString() || 0} en lista nominal
-            </p>
-          </CardContent>
-        </Card>
-        <Card>
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Participación</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold">{data.participacion?.toFixed(2) || 0}%</div>
-            <Progress value={data.participacion || 0} className="mt-2" />
-          </CardContent>
-        </Card>
-        <Card>
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Secciones</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold">{data.total_secciones?.toLocaleString() || 0}</div>
-            <p className="text-xs text-muted-foreground">Secciones electorales analizadas</p>
-          </CardContent>
-        </Card>
-        <Card>
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Votos Nulos</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold">{data.NULOS?.toLocaleString() || 0}</div>
-            <p className="text-xs text-muted-foreground">
-              {data.NULOS_porcentaje?.toFixed(2) || 0}% del total de votos
-            </p>
-          </CardContent>
-        </Card>
+        <CardSpotlight containerClassName="h-full">
+          <StatCard
+            title="Total de Votos"
+            value={
+              <AnimatedCounter
+                from={0}
+                to={data.total_votos || 0}
+                formatValue={(val) => val.toLocaleString()}
+                className="text-2xl font-bold"
+              />
+            }
+            description={`De ${data.total_lista_nominal?.toLocaleString() || 0} en lista nominal`}
+            icon={<Vote className="h-4 w-4" />}
+            className="border-0 h-full"
+          />
+        </CardSpotlight>
+
+        <CardSpotlight containerClassName="h-full">
+          <StatCard
+            title="Participación"
+            value={`${data.participacion?.toFixed(1) || 0}%`}
+            description={
+              <Progress
+                value={data.participacion || 0}
+                className="mt-2 h-2 bg-secondary"
+                indicatorClassName="bg-primary"
+              />
+            }
+            icon={<UserCheck className="h-4 w-4" />}
+            className="border-0 h-full"
+          />
+        </CardSpotlight>
+
+        <CardSpotlight containerClassName="h-full">
+          <StatCard
+            title="Secciones"
+            value={
+              <AnimatedCounter
+                from={0}
+                to={data.total_secciones || 0}
+                formatValue={(val) => val.toLocaleString()}
+                className="text-2xl font-bold"
+              />
+            }
+            description="Secciones electorales analizadas"
+            icon={<ClipboardList className="h-4 w-4" />}
+            className="border-0 h-full"
+          />
+        </CardSpotlight>
+
+        <CardSpotlight containerClassName="h-full">
+          <StatCard
+            title="Votos Nulos"
+            value={
+              <AnimatedCounter
+                from={0}
+                to={data.NULOS || 0}
+                formatValue={(val) => val.toLocaleString()}
+                className="text-2xl font-bold"
+              />
+            }
+            description={`${data.NULOS_porcentaje?.toFixed(2) || 0}% del total de votos`}
+            icon={<VoteIcon className="h-4 w-4" />}
+            className="border-0 h-full"
+          />
+        </CardSpotlight>
       </div>
 
-      {/* Add block analysis section */}
-      <Card>
-        <CardHeader>
-          <CardTitle>Análisis por Bloques</CardTitle>
-        </CardHeader>
-        <CardContent>
-          <div className="space-y-4">
-            <div className="flex items-center">
-              <div className="w-24 font-medium">Izquierda</div>
-              <div className="flex-1 mx-4">
-                <Progress
-                  value={data.bloque_izquierda_porcentaje || 0}
-                  className="h-3"
-                  indicatorClassName="bg-[#7e22ce]"
-                />
-              </div>
-              <div className="w-24 text-right font-medium">{(data.bloque_izquierda || 0).toLocaleString()}</div>
-              <div className="w-20 text-right text-muted-foreground">
-                {(data.bloque_izquierda_porcentaje || 0).toFixed(2)}%
-              </div>
+      <CardSpotlight containerClassName="w-full">
+        <Tabs defaultValue="bars" className="w-full">
+          <CardHeader className="bg-secondary-soft rounded-t-lg pb-2">
+            <div className="flex justify-between items-center">
+              <CardTitle className="text-primary">Resultados por Partido/Coalición</CardTitle>
+              <TabsList className="bg-background">
+                <TabsTrigger
+                  value="bars"
+                  className="data-[state=active]:bg-primary data-[state=active]:text-primary-foreground"
+                >
+                  Gráfico
+                </TabsTrigger>
+                <TabsTrigger
+                  value="table"
+                  className="data-[state=active]:bg-primary data-[state=active]:text-primary-foreground"
+                >
+                  Tabla
+                </TabsTrigger>
+              </TabsList>
             </div>
-
-            <div className="flex items-center">
-              <div className="w-24 font-medium">Derecha</div>
-              <div className="flex-1 mx-4">
-                <Progress
-                  value={data.bloque_derecha_porcentaje || 0}
-                  className="h-3"
-                  indicatorClassName="bg-[#1e40af]"
-                />
-              </div>
-              <div className="w-24 text-right font-medium">{(data.bloque_derecha || 0).toLocaleString()}</div>
-              <div className="w-20 text-right text-muted-foreground">
-                {(data.bloque_derecha_porcentaje || 0).toFixed(2)}%
-              </div>
-            </div>
-
-            <div className="flex items-center">
-              <div className="w-24 font-medium">Centro</div>
-              <div className="flex-1 mx-4">
-                <Progress
-                  value={data.bloque_centro_porcentaje || 0}
-                  className="h-3"
-                  indicatorClassName="bg-[#ea580c]"
-                />
-              </div>
-              <div className="w-24 text-right font-medium">{(data.bloque_centro || 0).toLocaleString()}</div>
-              <div className="w-20 text-right text-muted-foreground">
-                {(data.bloque_centro_porcentaje || 0).toFixed(2)}%
-              </div>
-            </div>
-          </div>
-        </CardContent>
-      </Card>
-
-      <Tabs defaultValue="bars" className="space-y-4">
-        <TabsList>
-          <TabsTrigger value="bars">Gráfico</TabsTrigger>
-          <TabsTrigger value="table">Tabla</TabsTrigger>
-        </TabsList>
-
-        <TabsContent value="bars">
-          <Card>
-            <CardHeader>
-              <CardTitle>Resultados por Partido/Coalición</CardTitle>
-            </CardHeader>
-            <CardContent>
-              <div className="h-[400px]">
+          </CardHeader>
+          <CardContent>
+            <TabsContent value="bars" className="mt-0">
+              <div className="h-[400px] pt-4">
                 <ResponsiveContainer width="100%" height="100%">
                   <BarChart data={chartData} margin={{ top: 20, right: 30, left: 20, bottom: 70 }}>
-                    <CartesianGrid strokeDasharray="3 3" />
+                    <CartesianGrid strokeDasharray="3 3" stroke="#e9d8fd" />
                     <XAxis dataKey="name" angle={-45} textAnchor="end" height={70} interval={0} />
                     <YAxis />
                     <Tooltip
@@ -172,45 +161,57 @@ export function ResultsSummary({ data }: ResultsSummaryProps) {
                         name === "votos" ? `${value.toLocaleString()} votos` : `${value.toFixed(2)}%`,
                         name === "votos" ? "Votos" : "Porcentaje",
                       ]}
+                      contentStyle={{
+                        backgroundColor: "rgba(255, 255, 255, 0.9)",
+                        borderRadius: "6px",
+                        border: "1px solid #e9d8fd",
+                      }}
                     />
                     <Legend />
-                    <Bar dataKey="votos" name="Votos" fill="#4f46e5" radius={[4, 4, 0, 0]} />
+                    <Bar dataKey="votos" name="Votos" radius={[4, 4, 0, 0]} barSize={36} animationDuration={1500}>
+                      {chartData.map((entry, index) => (
+                        <Cell key={`cell-${index}`} fill={getPartyColor(entry.name)} fillOpacity={0.8} />
+                      ))}
+                    </Bar>
                   </BarChart>
                 </ResponsiveContainer>
               </div>
-            </CardContent>
-          </Card>
-        </TabsContent>
+            </TabsContent>
 
-        <TabsContent value="table">
-          <Card>
-            <CardHeader>
-              <CardTitle>Resultados por Partido/Coalición</CardTitle>
-            </CardHeader>
-            <CardContent>
-              <div className="space-y-4">
+            <TabsContent value="table" className="mt-0">
+              <div className="space-y-6 pt-4">
                 {sortedResults.map(([party, votes]) => {
                   const percentage = data[`${party}_porcentaje`] || 0
+                  const color = getPartyColor(party)
                   return (
-                    <div key={party} className="flex items-center">
-                      <div className="w-16 md:w-24 font-medium">{party}</div>
-                      <div className="flex-1 mx-4">
-                        <Progress
-                          value={percentage}
-                          className="h-2"
-                          indicatorClassName={`bg-[${getPartyColor(party)}]`}
-                        />
+                    <div key={party} className="space-y-1">
+                      <div className="flex items-center justify-between mb-1">
+                        <div className="flex items-center gap-2">
+                          <div className="w-3 h-3 rounded-full" style={{ backgroundColor: color }}></div>
+                          <span className="font-medium">{party}</span>
+                        </div>
+                        <div className="font-medium">{votes.toLocaleString()} votos</div>
                       </div>
-                      <div className="w-20 text-right font-medium">{votes.toLocaleString()}</div>
-                      <div className="w-16 text-right text-muted-foreground">{percentage.toFixed(2)}%</div>
+                      <div className="relative pt-1">
+                        <div className="flex items-center justify-between mb-1">
+                          <div></div>
+                          <div className="text-sm text-muted-foreground">{percentage.toFixed(2)}%</div>
+                        </div>
+                        <div className="overflow-hidden h-2 text-xs flex rounded bg-secondary">
+                          <div
+                            style={{ width: `${percentage}%`, backgroundColor: color }}
+                            className="shadow-none flex flex-col text-center whitespace-nowrap text-white justify-center transition-all duration-500"
+                          ></div>
+                        </div>
+                      </div>
                     </div>
                   )
                 })}
               </div>
-            </CardContent>
-          </Card>
-        </TabsContent>
-      </Tabs>
+            </TabsContent>
+          </CardContent>
+        </Tabs>
+      </CardSpotlight>
     </div>
   )
 }
