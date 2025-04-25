@@ -1,27 +1,45 @@
-import { getServerSession } from "next-auth"
+import { getServerSession } from "next-auth/next"
 import { authOptions } from "@/auth"
 import { redirect, notFound } from "next/navigation"
 import { db } from "@/lib/db"
 import { VotoForm } from "@/components/votos/voto-form"
 import { EliminarVotoButton } from "@/components/votos/eliminar-voto-button"
 
-interface EditarVotoPageProps {
+interface EditarVotoCasillaPageProps {
   params: {
     id: string
+    votoId: string
   }
 }
 
-export default async function EditarVotoPage({ params }: EditarVotoPageProps) {
+export default async function EditarVotoCasillaPage({ params }: EditarVotoCasillaPageProps) {
   const session = await getServerSession(authOptions)
 
   if (!session?.user) {
     redirect("/auth/login")
   }
 
-  const id = Number.parseInt(params.id)
+  const casillaId = Number.parseInt(params.id)
+  const votoId = Number.parseInt(params.votoId)
 
-  const voto = await db.voto.findUnique({
-    where: { id },
+  // Verificar si la casilla existe
+  const casilla = await db.casilla.findUnique({
+    where: { id: casillaId },
+    select: {
+      id: true,
+    },
+  })
+
+  if (!casilla) {
+    notFound()
+  }
+
+  // Verificar si el voto existe y pertenece a la casilla
+  const voto = await db.voto.findFirst({
+    where: {
+      id: votoId,
+      casillaId,
+    },
     select: {
       id: true,
       cantidad: true,
@@ -66,6 +84,7 @@ export default async function EditarVotoPage({ params }: EditarVotoPageProps) {
     select: {
       id: true,
       nombre: true,
+      siglas: true,
     },
     orderBy: {
       nombre: "asc",
@@ -77,13 +96,12 @@ export default async function EditarVotoPage({ params }: EditarVotoPageProps) {
       <div className="flex justify-between items-center">
         <div>
           <h1 className="text-3xl font-bold">Editar Voto</h1>
-          <p className="text-muted-foreground">Modifica los datos del voto</p>
+          <p className="text-muted-foreground">Modifica los datos del voto para esta casilla</p>
         </div>
-        <EliminarVotoButton id={voto.id} />
+        <EliminarVotoButton id={voto.id} casillaId={casillaId} />
       </div>
 
-      <VotoForm voto={voto} casillas={casillas} partidos={partidos} />
+      <VotoForm voto={voto} casillas={casillas} partidos={partidos} casillaId={casillaId} />
     </div>
   )
 }
-

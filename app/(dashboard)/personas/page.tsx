@@ -1,41 +1,21 @@
-import { getServerSession } from "next-auth"
-import { authOptions } from "@/auth"
-import { redirect } from "next/navigation"
-import Link from "next/link"
-import { db } from "@/lib/db"
+"use client"
+
+import { useSession } from "next-auth/react"
+import { UserRole } from "@prisma/client"
 import { Button } from "@/components/ui/button"
 import { Plus } from "lucide-react"
+import { useRouter } from "next/navigation"
 import { PersonasTable } from "@/components/personas/personas-table"
 
-export default async function PersonasPage() {
-  const session = await getServerSession(authOptions)
+export default function PersonasPage() {
+  const { data: session } = useSession()
+  const router = useRouter()
 
-  if (!session?.user) {
-    redirect("/auth/login")
-  }
-
-  const personas = await db.persona.findMany({
-    select: {
-      id: true,
-      nombre: true,
-      apellidoPaterno: true,
-      apellidoMaterno: true,
-      telefono: true,
-      email: true,
-      referente: true,
-      seccion: {
-        select: {
-          nombre: true,
-        },
-      },
-      sector: {
-        select: {
-          nombre: true,
-        },
-      },
-    },
-    orderBy: [{ apellidoPaterno: "asc" }, { apellidoMaterno: "asc" }, { nombre: "asc" }],
-  })
+  // Verificar si el usuario puede crear personas
+  const canCreatePersonas =
+    session?.user?.role === UserRole.SUPER_USER ||
+    session?.user?.role === UserRole.ADMIN ||
+    session?.user?.role === UserRole.EDITOR
 
   return (
     <div className="space-y-6">
@@ -44,15 +24,15 @@ export default async function PersonasPage() {
           <h1 className="text-3xl font-bold">Personas</h1>
           <p className="text-muted-foreground">Gestiona el padrón de personas</p>
         </div>
-        <Button asChild>
-          <Link href="/personas/crear">
+        {canCreatePersonas && (
+          <Button onClick={() => router.push("/personas/crear")}>
             <Plus className="mr-2 h-4 w-4" />
             Nueva Persona
-          </Link>
-        </Button>
+          </Button>
+        )}
       </div>
 
-      <PersonasTable personas={personas} />
+      <PersonasTable personas={[]} />
     </div>
   )
 }

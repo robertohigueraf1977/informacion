@@ -1,4 +1,4 @@
-import { getServerSession } from "next-auth"
+import { getServerSession } from "next-auth/next"
 import { authOptions } from "@/auth"
 import { redirect } from "next/navigation"
 import Link from "next/link"
@@ -85,4 +85,3 @@ export default async function VotosPage({ params }: VotosPageProps) {
     </div>
   )
 }
-

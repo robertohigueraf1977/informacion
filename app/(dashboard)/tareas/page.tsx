@@ -1,68 +1,38 @@
-import { getServerSession } from "next-auth";
-import { authOptions } from "@/auth";
-import { redirect } from "next/navigation";
-import Link from "next/link";
-import { db } from "@/lib/db";
-import { Button } from "@/components/ui/button";
-import { TareasTable } from "@/components/tareas/tareas-table";
-import { Plus } from "lucide-react";
+"use client"
 
-export default async function TareasPage() {
-  const session = await getServerSession(authOptions);
+import { useSession } from "next-auth/react"
+import { UserRole } from "@prisma/client"
+import { Button } from "@/components/ui/button"
+import { Plus } from "lucide-react"
+import { useRouter } from "next/navigation"
+import { TareasTable } from "@/components/tareas/tareas-table"
 
-  if (!session?.user) {
-    redirect("/auth/login");
-  }
+export default function TareasPage() {
+  const { data: session } = useSession()
+  const router = useRouter()
 
-  const tareas = await db.tarea.findMany({
-    select: {
-      id: true,
-      titulo: true,
-      descripcion: true,
-      fecha: true,
-      completada: true,
-      creador: {
-        select: {
-          name: true,
-          username: true,
-        },
-      },
-      persona: {
-        select: {
-          nombre: true,
-          apellidoPaterno: true,
-          apellidoMaterno: true,
-        },
-      },
-    },
-    orderBy: [
-      {
-        completada: "asc",
-      },
-      {
-        fecha: "asc",
-      },
-    ],
-  });
+  // Verificar si el usuario puede crear tareas
+  const canCreateTareas =
+    session?.user?.role === UserRole.SUPER_USER ||
+    session?.user?.role === UserRole.ADMIN ||
+    session?.user?.role === UserRole.EDITOR
 
   return (
     <div className="space-y-6">
-      <div className="flex justify-between items-center">
+      <div className="flex justify-between items-center mb-6">
         <div>
           <h1 className="text-3xl font-bold">Tareas</h1>
-          <p className="text-muted-foreground">
-            Gestiona las tareas del sistema
-          </p>
+          <p className="text-muted-foreground">Gestiona las tareas del sistema</p>
         </div>
-        <Button asChild>
-          <Link href="/tareas/crear">
+        {canCreateTareas && (
+          <Button onClick={() => router.push("/tareas/crear")}>
             <Plus className="mr-2 h-4 w-4" />
             Nueva Tarea
-          </Link>
-        </Button>
+          </Button>
+        )}
       </div>
 
-      <TareasTable tareas={tareas} />
+      <TareasTable tareas={[]} />
     </div>
-  );
+  )
 }

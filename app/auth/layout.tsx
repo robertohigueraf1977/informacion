@@ -1,14 +1,14 @@
-import type React from "react";
-import { getServerSession } from "next-auth";
-import { authOptions } from "@/auth";
-import { SessionProvider } from "@/components/session-provider";
+import type React from "react"
+import { getServerSession } from "next-auth/next"
+import { authOptions } from "@/auth"
+import { SessionProvider } from "@/components/session-provider"
 
 export default async function AuthLayout({
   children,
 }: {
-  children: React.ReactNode;
+  children: React.ReactNode
 }) {
-  const session = await getServerSession(authOptions);
+  const session = await getServerSession(authOptions)
 
   return (
     <SessionProvider session={session}>
@@ -16,5 +16,5 @@ export default async function AuthLayout({
         <div className="w-full max-w-md">{children}</div>
       </div>
     </SessionProvider>
-  );
+  )
 }

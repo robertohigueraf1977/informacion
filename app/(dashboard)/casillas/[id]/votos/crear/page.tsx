@@ -1,4 +1,4 @@
-import { getServerSession } from "next-auth"
+import { getServerSession } from "next-auth/next"
 import { authOptions } from "@/auth"
 import { redirect, notFound } from "next/navigation"
 import { db } from "@/lib/db"
@@ -63,6 +63,7 @@ export default async function CrearVotoCasillaPage({ params }: CrearVotoCasillaP
     select: {
       id: true,
       nombre: true,
+      siglas: true,
     },
     orderBy: {
       nombre: "asc",
@@ -80,4 +81,3 @@ export default async function CrearVotoCasillaPage({ params }: CrearVotoCasillaP
     </div>
   )
 }
-

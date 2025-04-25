@@ -31,8 +31,6 @@ export default async function EditarCasillaPage({
       tipo: true,
       seccionId: true,
       direccion: true,
-      latitud: true,
-      longitud: true,
     },
   });
 

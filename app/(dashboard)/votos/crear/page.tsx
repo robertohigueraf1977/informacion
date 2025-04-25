@@ -1,14 +1,34 @@
-import { getServerSession } from "next-auth"
+import { getServerSession } from "next-auth/next"
 import { authOptions } from "@/auth"
-import { redirect } from "next/navigation"
+import { redirect, notFound } from "next/navigation"
 import { db } from "@/lib/db"
 import { VotoForm } from "@/components/votos/voto-form"
 
-export default async function CrearVotoPage() {
+interface CrearVotoCasillaPageProps {
+  params: {
+    id: string
+  }
+}
+
+export default async function CrearVotoCasillaPage({ params }: CrearVotoCasillaPageProps) {
   const session = await getServerSession(authOptions)
 
   if (!session?.user) {
     redirect("/auth/login")
+  }
+
+  const casillaId = Number.parseInt(params.id)
+
+  // Verificar si la casilla existe
+  const casilla = await db.casilla.findUnique({
+    where: { id: casillaId },
+    select: {
+      id: true,
+    },
+  })
+
+  if (!casilla) {
+    notFound()
   }
 
   // Obtener casillas y partidos para el formulario
@@ -43,6 +63,7 @@ export default async function CrearVotoPage() {
     select: {
       id: true,
       nombre: true,
+      siglas: true,
     },
     orderBy: {
       nombre: "asc",
@@ -52,12 +73,11 @@ export default async function CrearVotoPage() {
   return (
     <div className="space-y-6">
       <div>
-        <h1 className="text-3xl font-bold">Registrar Voto</h1>
-        <p className="text-muted-foreground">Completa el formulario para registrar un nuevo voto</p>
+        <h1 className="text-3xl font-bold">Registrar Voto para Casilla</h1>
+        <p className="text-muted-foreground">Completa el formulario para registrar un nuevo voto en esta casilla</p>
       </div>
 
-      <VotoForm casillas={casillas} partidos={partidos} />
+      <VotoForm casillas={casillas} partidos={partidos} casillaId={casillaId} />
     </div>
   )
 }
-

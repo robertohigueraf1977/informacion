@@ -1,4 +1,4 @@
-import { getServerSession } from "next-auth"
+import { getServerSession } from "next-auth/next"
 import { authOptions } from "@/auth"
 import { redirect, notFound } from "next/navigation"
 import { db } from "@/lib/db"
@@ -105,4 +105,3 @@ export default async function EditarVotoCasillaPage({ params }: EditarVotoCasill
     </div>
   )
 }
-
