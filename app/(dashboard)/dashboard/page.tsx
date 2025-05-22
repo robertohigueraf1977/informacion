@@ -6,7 +6,7 @@ import { es } from "date-fns/locale"
 import { Badge } from "@/components/ui/badge"
 import Link from "next/link"
 import { Button } from "@/components/ui/button"
-import { ArrowRight } from "lucide-react"
+import { ArrowRight, CheckCircle, Clock } from "lucide-react"
 
 export default async function DashboardPage() {
   // Obtener estadísticas básicas
@@ -55,9 +55,9 @@ export default async function DashboardPage() {
       case "ALTA":
         return "destructive"
       case "MEDIA":
-        return "default"
+        return "warning"
       case "BAJA":
-        return "secondary"
+        return "info"
       default:
         return "outline"
     }
@@ -131,8 +131,19 @@ export default async function DashboardPage() {
                             {tarea.titulo}
                           </Link>
                           <Badge variant={getPrioridadBadgeVariant(tarea.prioridad)}>{tarea.prioridad}</Badge>
-                          <Badge variant={tarea.completada ? "success" : "outline"}>
-                            {tarea.completada ? "Completada" : "Pendiente"}
+                          <Badge
+                            variant={tarea.completada ? "success" : "secondary"}
+                            className="flex items-center gap-1"
+                          >
+                            {tarea.completada ? (
+                              <>
+                                <CheckCircle className="h-3 w-3" /> Completada
+                              </>
+                            ) : (
+                              <>
+                                <Clock className="h-3 w-3" /> Pendiente
+                              </>
+                            )}
                           </Badge>
                         </div>
                         <p className="text-sm text-muted-foreground">
@@ -175,6 +186,9 @@ export default async function DashboardPage() {
                             {tarea.titulo}
                           </Link>
                           <Badge variant={getPrioridadBadgeVariant(tarea.prioridad)}>{tarea.prioridad}</Badge>
+                          <Badge variant="secondary" className="flex items-center gap-1">
+                            <Clock className="h-3 w-3" /> Pendiente
+                          </Badge>
                         </div>
                         <p className="text-sm text-muted-foreground">
                           Asignada a:{" "}
