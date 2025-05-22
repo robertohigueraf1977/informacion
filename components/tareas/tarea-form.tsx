@@ -63,9 +63,9 @@ export function TareaForm({ tarea, personas }: TareaFormProps) {
     defaultValues: {
       titulo: tarea?.titulo || "",
       descripcion: tarea?.descripcion || "",
-      fecha: tarea?.fecha ? new Date(tarea.fecha) : null,
-      completada: tarea?.completada || false,
+      completada: tarea?.completada ?? false,
       personaId: tarea?.personaId ? String(tarea.personaId) : "",
+      fecha: tarea?.fecha ? new Date(tarea.fecha) : undefined,
     },
   })
 
@@ -76,36 +76,36 @@ export function TareaForm({ tarea, personas }: TareaFormProps) {
       const url = isEditing ? `/api/tareas/${tarea.id}` : "/api/tareas"
       const method = isEditing ? "PUT" : "POST"
 
+      console.log("Enviando datos:", values)
+
       const response = await fetch(url, {
         method,
         headers: {
           "Content-Type": "application/json",
         },
-        body: JSON.stringify({
-          ...values,
-          personaId: Number.parseInt(values.personaId),
-        }),
+        body: JSON.stringify(values),
       })
 
-      if (response.ok) {
-        toast({
-          title: isEditing ? "Tarea actualizada" : "Tarea creada",
-          description: isEditing ? "La tarea ha sido actualizada exitosamente" : "La tarea ha sido creada exitosamente",
-        })
-        router.push("/tareas")
-        router.refresh()
-      } else {
-        const data = await response.json()
-        toast({
-          title: "Error",
-          description: data.error || "Ocurrió un error",
-          variant: "destructive",
-        })
+      if (!response.ok) {
+        const errorData = await response.json()
+        console.error("Error response:", errorData)
+        throw new Error(errorData.error || "Error al procesar la solicitud")
       }
+
+      const data = await response.json()
+
+      toast({
+        title: isEditing ? "Tarea actualizada" : "Tarea creada",
+        description: isEditing ? "La tarea ha sido actualizada exitosamente" : "La tarea ha sido creada exitosamente",
+      })
+
+      router.push("/tareas")
+      router.refresh()
     } catch (error) {
+      console.error("Error:", error)
       toast({
         title: "Error",
-        description: "Ocurrió un error inesperado",
+        description: error instanceof Error ? error.message : "Ocurrió un error inesperado",
         variant: "destructive",
       })
     } finally {
