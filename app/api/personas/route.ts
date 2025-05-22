@@ -58,7 +58,9 @@ export async function GET() {
 
 export async function POST(req: Request) {
   try {
+    console.log("POST /api/personas - Iniciando")
     const session = await getServerSession(authOptions)
+    console.log("POST /api/personas - Sesión:", session?.user?.role)
 
     // Solo SUPER_USER, ADMIN y EDITOR pueden crear personas
     if (
@@ -67,12 +69,15 @@ export async function POST(req: Request) {
         session.user.role !== UserRole.ADMIN &&
         session.user.role !== UserRole.EDITOR)
     ) {
+      console.log("POST /api/personas - No autorizado, rol:", session?.user?.role)
       return NextResponse.json({ error: "No autorizado" }, { status: 403 })
     }
 
+    const body = await req.json()
+    console.log("POST /api/personas - Body recibido:", JSON.stringify(body, null, 2))
+
     // Verificar que EDITOR solo crea personas en su municipio
     if (session.user.role === UserRole.EDITOR) {
-      const body = await req.json()
       const user = await db.user.findUnique({
         where: { id: session.user.id },
         include: { municipio: true },
@@ -83,16 +88,9 @@ export async function POST(req: Request) {
       }
 
       // Verificar que el municipio de la persona coincide con el del usuario
-      const domicilio = await db.domicilio.findUnique({
-        where: { id: body.domicilioId },
-      })
-
-      if (domicilio?.municipioId !== user.municipioId) {
-        return NextResponse.json({ error: "No puedes crear personas fuera de tu municipio" }, { status: 403 })
-      }
+      // Nota: Ya no verificamos domicilioId porque ahora creamos el domicilio en la misma transacción
     }
 
-    const body = await req.json()
     const {
       nombre,
       apellidoPaterno,
@@ -117,12 +115,14 @@ export async function POST(req: Request) {
       longitud,
     } = body
 
+    console.log("POST /api/personas - Validando campos requeridos")
     if (!nombre || !apellidoPaterno || !calle) {
       return NextResponse.json({ error: "Faltan campos requeridos" }, { status: 400 })
     }
 
-    // Si el usuario no es admin, verificar que la sección pertenezca a su distrito/municipio
-    if (session.user.role !== "admin" && session.user.role !== UserRole.EDITOR && seccionId) {
+    // Si el usuario no es admin o super_user, verificar que la sección pertenezca a su distrito/municipio
+    if (session.user.role !== UserRole.ADMIN && session.user.role !== UserRole.SUPER_USER && seccionId) {
+      console.log("POST /api/personas - Verificando permisos para sección")
       const usuario = await db.user.findUnique({
         where: { id: session.user.id },
         include: {
@@ -146,48 +146,73 @@ export async function POST(req: Request) {
       }
     }
 
-    // Crear la persona y su domicilio en una transacción
-    const persona = await db.$transaction(async (tx) => {
-      // Crear la persona
-      const persona = await tx.persona.create({
-        data: {
-          nombre,
-          apellidoPaterno,
-          apellidoMaterno: apellidoMaterno || null,
-          fechaNacimiento: fechaNacimiento ? new Date(fechaNacimiento) : null,
-          curp: curp || null,
-          claveElector: claveElector || null,
-          seccionId: seccionId || null,
-          telefono: telefono || null,
-          email: email || null,
-          sectorId: sectorId || null,
-          referente: referente || false,
-          referidoPorId: referidoPorId || null,
-        },
+    console.log("POST /api/personas - Iniciando transacción")
+    try {
+      // Crear la persona y su domicilio en una transacción
+      const persona = await db.$transaction(async (tx) => {
+        console.log("POST /api/personas - Creando persona")
+        // Crear la persona
+        const persona = await tx.persona.create({
+          data: {
+            nombre,
+            apellidoPaterno,
+            apellidoMaterno: apellidoMaterno || null,
+            fechaNacimiento: fechaNacimiento ? new Date(fechaNacimiento) : null,
+            curp: curp || null,
+            claveElector: claveElector || null,
+            seccionId: seccionId ? Number(seccionId) : null,
+            telefono: telefono || null,
+            email: email || null,
+            sectorId: sectorId ? Number(sectorId) : null,
+            referente: referente || false,
+            referidoPorId: referidoPorId ? Number(referidoPorId) : null,
+          },
+        })
+
+        console.log("POST /api/personas - Persona creada:", persona.id)
+        console.log("POST /api/personas - Creando domicilio")
+
+        // Crear el domicilio asociado a la persona
+        const domicilio = await tx.domicilio.create({
+          data: {
+            calle,
+            numero: numero || null,
+            colonia: colonia || null,
+            localidad: localidad || null,
+            codigoPostal: codigoPostal || null,
+            referencias: referencias || null,
+            latitud: latitud ? Number.parseFloat(latitud) : null,
+            longitud: longitud ? Number.parseFloat(longitud) : null,
+            personaId: persona.id,
+            seccionId: seccionId ? Number(seccionId) : null,
+            municipioId: null, // Añadir municipioId basado en la sección si es necesario
+          },
+        })
+
+        console.log("POST /api/personas - Domicilio creado:", domicilio.id)
+        return persona
       })
 
-      // Crear el domicilio asociado a la persona
-      await tx.domicilio.create({
-        data: {
-          calle,
-          numero: numero || null,
-          colonia: colonia || null,
-          localidad: localidad || null,
-          codigoPostal: codigoPostal || null,
-          referencias: referencias || null,
-          latitud: latitud || null,
-          longitud: longitud || null,
-          personaId: persona.id,
-          seccionId: seccionId || null,
+      console.log("POST /api/personas - Transacción completada exitosamente")
+      return NextResponse.json(persona, { status: 201 })
+    } catch (txError) {
+      console.error("POST /api/personas - Error en la transacción:", txError)
+      return NextResponse.json(
+        {
+          error: "Error al crear la persona y su domicilio",
+          details: txError.message,
         },
-      })
-
-      return persona
-    })
-
-    return NextResponse.json(persona, { status: 201 })
+        { status: 500 },
+      )
+    }
   } catch (error) {
-    console.error("Error al crear persona:", error)
-    return NextResponse.json({ error: "Error interno del servidor" }, { status: 500 })
+    console.error("POST /api/personas - Error general:", error)
+    return NextResponse.json(
+      {
+        error: "Error interno del servidor",
+        details: error.message,
+      },
+      { status: 500 },
+    )
   }
 }

@@ -20,11 +20,11 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 
 interface ElectoralResultsChartProps {
   data: Record<string, number>
-  parties: string[]
-  coalitions: string[]
+  parties?: string[]
+  coalitions?: string[]
 }
 
-export function ElectoralResultsChart({ data, parties, coalitions }: ElectoralResultsChartProps) {
+export function ElectoralResultsChart({ data, parties = [], coalitions = [] }: ElectoralResultsChartProps) {
   const [chartType, setChartType] = useState<string>("bar")
   const [dataFilter, setDataFilter] = useState<string>("all")
 
@@ -51,6 +51,11 @@ export function ElectoralResultsChart({ data, parties, coalitions }: ElectoralRe
 
   // Preparar datos para el gráfico
   const chartData = useMemo(() => {
+    // Asegurarnos de que data es un objeto válido
+    if (!data || typeof data !== "object") {
+      return []
+    }
+
     const filteredParties =
       dataFilter === "all"
         ? [...parties, "NO_REGISTRADAS", "NULOS"]
@@ -62,11 +67,17 @@ export function ElectoralResultsChart({ data, parties, coalitions }: ElectoralRe
 
     return filteredParties
       .filter((party) => data[party] !== undefined)
-      .map((party) => ({
-        name: party,
-        votos: data[party] || 0,
-        porcentaje: Number.parseFloat((data[`${party}_porcentaje`] || 0).toFixed(2)),
-      }))
+      .map((party) => {
+        const votoValue = data[party] || 0
+        const porcentajeKey = `${party}_porcentaje`
+        const porcentajeValue = data[porcentajeKey] || 0
+
+        return {
+          name: party,
+          votos: votoValue,
+          porcentaje: Number.isFinite(porcentajeValue) ? Number.parseFloat(porcentajeValue.toFixed(2)) : 0,
+        }
+      })
       .sort((a, b) => b.votos - a.votos)
   }, [data, parties, coalitions, dataFilter])
 
@@ -77,6 +88,15 @@ export function ElectoralResultsChart({ data, parties, coalitions }: ElectoralRe
       value: chartType === "votes" ? item.votos : item.porcentaje,
     }))
   }, [chartData, chartType])
+
+  // Si no hay datos, mostrar mensaje
+  if (Object.keys(data || {}).length === 0) {
+    return (
+      <div className="flex items-center justify-center h-64 border rounded-lg bg-muted/10">
+        <p className="text-muted-foreground">No hay datos disponibles para mostrar</p>
+      </div>
+    )
+  }
 
   return (
     <div className="space-y-6">
@@ -123,82 +143,126 @@ export function ElectoralResultsChart({ data, parties, coalitions }: ElectoralRe
             </TabsList>
 
             <TabsContent value="bar" className="h-[500px]">
-              <ResponsiveContainer width="100%" height="100%">
-                <BarChart data={chartData} margin={{ top: 20, right: 30, left: 20, bottom: 70 }}>
-                  <CartesianGrid strokeDasharray="3 3" stroke="#e9d8fd" />
-                  <XAxis dataKey="name" angle={-45} textAnchor="end" height={70} interval={0} tick={{ fontSize: 12 }} />
-                  <YAxis />
-                  <Tooltip
-                    formatter={(value: any) => [`${value.toLocaleString()} votos`, "Votos"]}
-                    contentStyle={{
-                      backgroundColor: "rgba(255, 255, 255, 0.9)",
-                      borderRadius: "6px",
-                      border: "1px solid #e9d8fd",
-                    }}
-                  />
-                  <Legend />
-                  <Bar dataKey="votos" name="Votos" radius={[4, 4, 0, 0]} barSize={30}>
-                    {chartData.map((entry, index) => (
-                      <Cell key={`cell-${index}`} fill={partyColors[entry.name] || "#9f7aea"} fillOpacity={0.8} />
-                    ))}
-                  </Bar>
-                </BarChart>
-              </ResponsiveContainer>
+              {chartData.length > 0 ? (
+                <ResponsiveContainer width="100%" height="100%">
+                  <BarChart data={chartData} margin={{ top: 20, right: 30, left: 20, bottom: 70 }}>
+                    <CartesianGrid strokeDasharray="3 3" stroke="#e9d8fd" />
+                    <XAxis
+                      dataKey="name"
+                      angle={-45}
+                      textAnchor="end"
+                      height={70}
+                      interval={0}
+                      tick={{ fontSize: 12 }}
+                    />
+                    <YAxis />
+                    <Tooltip
+                      formatter={(value: any) => {
+                        if (typeof value !== "number") return ["0 votos", "Votos"]
+                        return [`${value.toLocaleString()} votos`, "Votos"]
+                      }}
+                      contentStyle={{
+                        backgroundColor: "rgba(255, 255, 255, 0.9)",
+                        borderRadius: "6px",
+                        border: "1px solid #e9d8fd",
+                      }}
+                    />
+                    <Legend />
+                    <Bar dataKey="votos" name="Votos" radius={[4, 4, 0, 0]} barSize={30}>
+                      {chartData.map((entry, index) => (
+                        <Cell key={`cell-${index}`} fill={partyColors[entry.name] || "#9f7aea"} fillOpacity={0.8} />
+                      ))}
+                    </Bar>
+                  </BarChart>
+                </ResponsiveContainer>
+              ) : (
+                <div className="flex items-center justify-center h-full">
+                  <p className="text-muted-foreground">No hay datos suficientes para mostrar el gráfico</p>
+                </div>
+              )}
             </TabsContent>
 
             <TabsContent value="pie" className="h-[500px]">
-              <ResponsiveContainer width="100%" height="100%">
-                <PieChart>
-                  <Pie
-                    data={pieData}
-                    cx="50%"
-                    cy="50%"
-                    labelLine={true}
-                    outerRadius={180}
-                    fill="#8884d8"
-                    dataKey="value"
-                    nameKey="name"
-                    label={({ name, percent }) => `${name}: ${(percent * 100).toFixed(1)}%`}
-                  >
-                    {pieData.map((entry, index) => (
-                      <Cell key={`cell-${index}`} fill={partyColors[entry.name] || "#9f7aea"} />
-                    ))}
-                  </Pie>
-                  <Tooltip
-                    formatter={(value: any) => [`${value.toLocaleString()} votos`, "Votos"]}
-                    contentStyle={{
-                      backgroundColor: "rgba(255, 255, 255, 0.9)",
-                      borderRadius: "6px",
-                      border: "1px solid #e9d8fd",
-                    }}
-                  />
-                  <Legend />
-                </PieChart>
-              </ResponsiveContainer>
+              {pieData.length > 0 ? (
+                <ResponsiveContainer width="100%" height="100%">
+                  <PieChart>
+                    <Pie
+                      data={pieData}
+                      cx="50%"
+                      cy="50%"
+                      labelLine={true}
+                      outerRadius={180}
+                      fill="#8884d8"
+                      dataKey="value"
+                      nameKey="name"
+                      label={({ name, percent }) => {
+                        if (typeof percent !== "number") return ""
+                        return `${name}: ${(percent * 100).toFixed(1)}%`
+                      }}
+                    >
+                      {pieData.map((entry, index) => (
+                        <Cell key={`cell-${index}`} fill={partyColors[entry.name] || "#9f7aea"} />
+                      ))}
+                    </Pie>
+                    <Tooltip
+                      formatter={(value: any) => {
+                        if (typeof value !== "number") return ["0 votos", "Votos"]
+                        return [`${value.toLocaleString()} votos`, "Votos"]
+                      }}
+                      contentStyle={{
+                        backgroundColor: "rgba(255, 255, 255, 0.9)",
+                        borderRadius: "6px",
+                        border: "1px solid #e9d8fd",
+                      }}
+                    />
+                    <Legend />
+                  </PieChart>
+                </ResponsiveContainer>
+              ) : (
+                <div className="flex items-center justify-center h-full">
+                  <p className="text-muted-foreground">No hay datos suficientes para mostrar el gráfico</p>
+                </div>
+              )}
             </TabsContent>
 
             <TabsContent value="percentage" className="h-[500px]">
-              <ResponsiveContainer width="100%" height="100%">
-                <BarChart data={chartData} margin={{ top: 20, right: 30, left: 20, bottom: 70 }}>
-                  <CartesianGrid strokeDasharray="3 3" stroke="#e9d8fd" />
-                  <XAxis dataKey="name" angle={-45} textAnchor="end" height={70} interval={0} tick={{ fontSize: 12 }} />
-                  <YAxis />
-                  <Tooltip
-                    formatter={(value: any) => [`${value.toFixed(2)}%`, "Porcentaje"]}
-                    contentStyle={{
-                      backgroundColor: "rgba(255, 255, 255, 0.9)",
-                      borderRadius: "6px",
-                      border: "1px solid #e9d8fd",
-                    }}
-                  />
-                  <Legend />
-                  <Bar dataKey="porcentaje" name="Porcentaje" radius={[4, 4, 0, 0]} barSize={30}>
-                    {chartData.map((entry, index) => (
-                      <Cell key={`cell-${index}`} fill={partyColors[entry.name] || "#9f7aea"} fillOpacity={0.8} />
-                    ))}
-                  </Bar>
-                </BarChart>
-              </ResponsiveContainer>
+              {chartData.length > 0 ? (
+                <ResponsiveContainer width="100%" height="100%">
+                  <BarChart data={chartData} margin={{ top: 20, right: 30, left: 20, bottom: 70 }}>
+                    <CartesianGrid strokeDasharray="3 3" stroke="#e9d8fd" />
+                    <XAxis
+                      dataKey="name"
+                      angle={-45}
+                      textAnchor="end"
+                      height={70}
+                      interval={0}
+                      tick={{ fontSize: 12 }}
+                    />
+                    <YAxis />
+                    <Tooltip
+                      formatter={(value: any) => {
+                        if (typeof value !== "number") return ["0%", "Porcentaje"]
+                        return [`${value.toFixed(2)}%`, "Porcentaje"]
+                      }}
+                      contentStyle={{
+                        backgroundColor: "rgba(255, 255, 255, 0.9)",
+                        borderRadius: "6px",
+                        border: "1px solid #e9d8fd",
+                      }}
+                    />
+                    <Legend />
+                    <Bar dataKey="porcentaje" name="Porcentaje" radius={[4, 4, 0, 0]} barSize={30}>
+                      {chartData.map((entry, index) => (
+                        <Cell key={`cell-${index}`} fill={partyColors[entry.name] || "#9f7aea"} fillOpacity={0.8} />
+                      ))}
+                    </Bar>
+                  </BarChart>
+                </ResponsiveContainer>
+              ) : (
+                <div className="flex items-center justify-center h-full">
+                  <p className="text-muted-foreground">No hay datos suficientes para mostrar el gráfico</p>
+                </div>
+              )}
             </TabsContent>
           </Tabs>
         </CardContent>

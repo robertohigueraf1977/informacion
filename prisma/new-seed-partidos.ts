@@ -20,7 +20,8 @@ export async function main() {
       partidos.map(async (partido) => {
         return await prisma.partido.create({
           data: {
-            nombre: partido.nombre
+            nombre: partido.nombre,
+            siglas: partido.siglas
           }
         });
       })

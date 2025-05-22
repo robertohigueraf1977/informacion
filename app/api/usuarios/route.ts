@@ -9,9 +9,24 @@ export async function GET() {
   try {
     const session = await getServerSession(authOptions)
 
+    // Añadir logs para depuración
+    console.log("Session in usuarios API:", session)
+    console.log("User role:", session?.user?.role)
+
     // Verificar si el usuario está autenticado y es SUPER_USER
-    if (!session?.user || session.user.role !== UserRole.SUPER_USER) {
-      return NextResponse.json({ error: "No autorizado" }, { status: 403 })
+    if (!session?.user) {
+      return NextResponse.json({ error: "No autenticado" }, { status: 401 })
+    }
+
+    // Modificar la verificación para usar comparación de strings
+    if (session.user.role !== "SUPER_USER") {
+      return NextResponse.json(
+        {
+          error: "No autorizado, se requiere rol SUPER_USER",
+          currentRole: session.user.role,
+        },
+        { status: 403 },
+      )
     }
 
     const usuarios = await db.user.findMany({

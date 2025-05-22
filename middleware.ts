@@ -14,11 +14,17 @@ export async function middleware(request: NextRequest) {
     return NextResponse.redirect(url)
   }
 
+  // Modificar esta línea para asegurarnos de que el rol se obtiene correctamente
   const role = token.role as UserRole
+
+  // Añadir un log para depuración
+  console.log("User role from token:", role)
+
   const path = request.nextUrl.pathname
 
-  // Restricciones para rutas de usuarios (solo SUPER_USER)
-  if (path.startsWith("/usuarios") && role !== UserRole.SUPER_USER) {
+  // Asegurarnos de que las comparaciones de roles sean correctas
+  if (path.startsWith("/usuarios") && role !== "SUPER_USER") {
+    console.log("Access denied to /usuarios for role:", role)
     return NextResponse.redirect(new URL("/dashboard", request.url))
   }
 

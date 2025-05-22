@@ -20,6 +20,8 @@ import { cn } from "@/lib/utils"
 import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from "@/components/ui/command"
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover"
 import { useDebounce } from "@/hooks/use-debounce"
+import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert"
+import { AlertCircle } from "lucide-react"
 
 type Persona = {
   id: number
@@ -140,6 +142,7 @@ export function PersonaForm({
   const router = useRouter()
   const { toast } = useToast()
   const [isLoading, setIsLoading] = useState(false)
+  const [error, setError] = useState<string | null>(null)
   const isEditing = !!persona
   const [position, setPosition] = useState<[number, number]>([
     persona?.domicilio?.latitud || 24.13307907237313,
@@ -234,8 +237,10 @@ export function PersonaForm({
 
   const onSubmit = async (values: z.infer<typeof formSchema>) => {
     setIsLoading(true)
+    setError(null)
 
     try {
+      console.log("Enviando datos:", values)
       const url = isEditing ? `/api/personas/${persona.id}` : "/api/personas"
 
       const method = isEditing ? "PUT" : "POST"
@@ -256,6 +261,8 @@ export function PersonaForm({
         }),
       })
 
+      const data = await response.json()
+
       if (response.ok) {
         toast({
           title: isEditing ? "Persona actualizada" : "Persona creada",
@@ -266,14 +273,17 @@ export function PersonaForm({
         router.push("/personas")
         router.refresh()
       } else {
-        const data = await response.json()
+        console.error("Error en la respuesta:", data)
+        setError(data.error || data.details || "Ocurrió un error desconocido")
         toast({
           title: "Error",
-          description: data.error || "Ocurrió un error",
+          description: data.error || data.details || "Ocurrió un error",
           variant: "destructive",
         })
       }
     } catch (error) {
+      console.error("Error al enviar formulario:", error)
+      setError(error.message || "Ocurrió un error inesperado")
       toast({
         title: "Error",
         description: "Ocurrió un error inesperado",
@@ -291,6 +301,15 @@ export function PersonaForm({
         <TabsTrigger value="electoral">Información Electoral</TabsTrigger>
         <TabsTrigger value="domicilio">Domicilio</TabsTrigger>
       </TabsList>
+
+      {error && (
+        <Alert variant="destructive" className="mt-4">
+          <AlertCircle className="h-4 w-4" />
+          <AlertTitle>Error</AlertTitle>
+          <AlertDescription>{error}</AlertDescription>
+        </Alert>
+      )}
+
       <TabsContent value="datos">
         <Card>
           <CardContent className="pt-6">
@@ -492,14 +511,14 @@ export function PersonaForm({
                     <div>
                       <FormLabel>Filtrar por Municipio</FormLabel>
                       <Select
-                        onValueChange={(value) => setMunicipioFilter(value === "none" ? null : Number(value))}
-                        defaultValue={municipioFilter ? String(municipioFilter) : "none"}
+                        onValueChange={(value) => setMunicipioFilter(value === "" ? null : Number(value))}
+                        defaultValue={municipioFilter ? String(municipioFilter) : ""}
                       >
                         <SelectTrigger>
                           <SelectValue placeholder="Selecciona un municipio" />
                         </SelectTrigger>
                         <SelectContent>
-                          <SelectItem value="none">Todos los municipios</SelectItem>
+                          <SelectItem value="all">Todos los municipios</SelectItem>
                           {municipios.map((municipio) => (
                             <SelectItem key={municipio.id} value={String(municipio.id)}>
                               {municipio.nombre}
@@ -511,14 +530,14 @@ export function PersonaForm({
                     <div>
                       <FormLabel>Filtrar por Distrito Local</FormLabel>
                       <Select
-                        onValueChange={(value) => setDistritoLocalFilter(value === "none" ? null : Number(value))}
-                        defaultValue={distritoLocalFilter ? String(distritoLocalFilter) : "none"}
+                        onValueChange={(value) => setDistritoLocalFilter(value === "" ? null : Number(value))}
+                        defaultValue={distritoLocalFilter ? String(distritoLocalFilter) : ""}
                       >
                         <SelectTrigger>
                           <SelectValue placeholder="Selecciona un distrito local" />
                         </SelectTrigger>
                         <SelectContent>
-                          <SelectItem value="none">Todos los distritos locales</SelectItem>
+                          <SelectItem value="all">Todos los distritos locales</SelectItem>
                           {distritosLocales.map((distrito) => (
                             <SelectItem key={distrito.id} value={String(distrito.id)}>
                               {distrito.nombre}
@@ -530,14 +549,14 @@ export function PersonaForm({
                     <div>
                       <FormLabel>Filtrar por Distrito Federal</FormLabel>
                       <Select
-                        onValueChange={(value) => setDistritoFederalFilter(value === "none" ? null : Number(value))}
-                        defaultValue={distritoFederalFilter ? String(distritoFederalFilter) : "none"}
+                        onValueChange={(value) => setDistritoFederalFilter(value === "" ? null : Number(value))}
+                        defaultValue={distritoFederalFilter ? String(distritoFederalFilter) : ""}
                       >
                         <SelectTrigger>
                           <SelectValue placeholder="Selecciona un distrito federal" />
                         </SelectTrigger>
                         <SelectContent>
-                          <SelectItem value="none">Todos los distritos federales</SelectItem>
+                          <SelectItem value="all">Todos los distritos federales</SelectItem>
                           {distritosFederales.map((distrito) => (
                             <SelectItem key={distrito.id} value={String(distrito.id)}>
                               {distrito.nombre}

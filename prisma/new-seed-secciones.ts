@@ -16,22 +16,23 @@ export async function main() {
     }
 
     // Ensure municipalities exist
-    const requiredMunicipioIds = [...new Set(secciones.map(seccion => seccion.municipioId))];
-    for (const municipioId of requiredMunicipioIds) {
-      const existingMunicipio = await prisma.municipio.findUnique({
-        where: { id: municipioId }
-      });
-
-      if (!existingMunicipio) {
-        await prisma.municipio.create({
-          data: {
-            id: municipioId,
-            nombre: `Municipio ${municipioId}`
-          }
-        });
-        console.log(`Created municipality with ID: ${municipioId}`);
-      }
-    }
+    // Verificar y crear municipios si no existen
+  const municipios = await prisma.municipio.findMany();
+  if (municipios.length === 0) {
+    console.log("No se encontraron municipios. Creando municipios...");
+    await prisma.municipio.createMany({
+      data: [
+        { nombre: "Comondu" },
+        { nombre: "Mulege" },
+        { nombre: "La Paz" },
+        { nombre: "Los Cabos" },
+        { nombre: "Loreto" },
+      ],
+    });
+    console.log("Municipios creados exitosamente.");
+  } else {
+    console.log(`Se encontraron ${municipios.length} municipios existentes.`);
+  } 
 
     // Ensure local districts exist
     const requiredDistritoLocalIds = [...new Set(secciones.map(seccion => seccion.distritoLocalId))];

@@ -80,15 +80,17 @@ export function ResultsSummary({ data }: ResultsSummaryProps) {
           <StatCard
             title="Participación"
             value={`${data.participacion?.toFixed(1) || 0}%`}
-            description={
-              <Progress
-                value={data.participacion || 0}
-                className="mt-2 h-2 bg-secondary"
-                indicatorClassName="bg-primary"
-              />
-            }
             icon={<UserCheck className="h-4 w-4" />}
             className="border-0 h-full"
+            descriptionElement={
+              <div className="mt-2">
+                <Progress
+                  value={data.participacion || 0}
+                  className="h-2 bg-secondary"
+                  indicatorClassName="bg-primary"
+                />
+              </div>
+            }
           />
         </CardSpotlight>
 
@@ -120,7 +122,7 @@ export function ResultsSummary({ data }: ResultsSummaryProps) {
                 className="text-2xl font-bold"
               />
             }
-            description={`${data.NULOS_porcentaje?.toFixed(2) || 0}% del total de votos`}
+            description={`${(data.NULOS_porcentaje || 0).toFixed(2)}% del total de votos`}
             icon={<VoteIcon className="h-4 w-4" />}
             className="border-0 h-full"
           />
@@ -157,10 +159,16 @@ export function ResultsSummary({ data }: ResultsSummaryProps) {
                     <XAxis dataKey="name" angle={-45} textAnchor="end" height={70} interval={0} />
                     <YAxis />
                     <Tooltip
-                      formatter={(value: any, name: string) => [
-                        name === "votos" ? `${value.toLocaleString()} votos` : `${value.toFixed(2)}%`,
-                        name === "votos" ? "Votos" : "Porcentaje",
-                      ]}
+                      formatter={(value: any, name: string) => {
+                        // Asegurarse de que value sea un número antes de llamar a toFixed()
+                        if (name === "votos") {
+                          return [`${typeof value === "number" ? value.toLocaleString() : value} votos`, "Votos"]
+                        } else {
+                          // Para porcentaje, asegurarse de que sea un número
+                          const numValue = typeof value === "number" ? value : 0
+                          return [`${numValue.toFixed(2)}%`, "Porcentaje"]
+                        }
+                      }}
                       contentStyle={{
                         backgroundColor: "rgba(255, 255, 255, 0.9)",
                         borderRadius: "6px",

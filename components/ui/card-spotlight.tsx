@@ -5,13 +5,13 @@ import type React from "react"
 import { useRef, useState } from "react"
 import { cn } from "@/lib/utils"
 
-interface CardSpotlightProps extends React.HTMLAttributes<HTMLDivElement> {
+interface CardSpotlightProps {
   children: React.ReactNode
   className?: string
   containerClassName?: string
 }
 
-export function CardSpotlight({ children, className, containerClassName, ...props }: CardSpotlightProps) {
+export function CardSpotlight({ children, className, containerClassName }: CardSpotlightProps) {
   const divRef = useRef<HTMLDivElement>(null)
   const [isFocused, setIsFocused] = useState(false)
   const [position, setPosition] = useState({ x: 0, y: 0 })
@@ -43,16 +43,14 @@ export function CardSpotlight({ children, className, containerClassName, ...prop
       onMouseEnter={handleMouseEnter}
       onMouseLeave={handleMouseLeave}
       className={cn("relative overflow-hidden rounded-xl border bg-background", containerClassName)}
-      {...props}
     >
       <div
-        className={cn(
-          "pointer-events-none absolute -inset-px opacity-0 transition-opacity duration-300",
-          isFocused ? "opacity-100" : "opacity-0",
-        )}
+        className={cn("pointer-events-none absolute -inset-px opacity-0 transition duration-300", {
+          "opacity-100": isFocused,
+        })}
         style={{
           opacity,
-          background: `radial-gradient(600px circle at ${position.x}px ${position.y}px, rgba(120, 100, 250, 0.1), transparent 40%)`,
+          background: `radial-gradient(600px circle at ${position.x}px ${position.y}px, rgba(120, 85, 220, 0.15), transparent 40%)`,
         }}
       />
       <div className={className}>{children}</div>

@@ -1,34 +1,16 @@
-import { NextAuthOptions } from "next-auth";
-import { PrismaAdapter } from "@auth/prisma-adapter";
-import CredentialsProvider from "next-auth/providers/credentials";
-import bcrypt from "bcryptjs";
-import { UserRole } from "@prisma/client";
-import { DefaultSession } from "next-auth";
+import NextAuth from "next-auth"
+import { PrismaAdapter } from "@auth/prisma-adapter"
+import CredentialsProvider from "next-auth/providers/credentials"
+import bcrypt from "bcryptjs"
 
-import { db } from "@/lib/db";
+import { db } from "@/lib/db"
 
-// Type extensions
-declare module "next-auth" {
-  interface Session {
-    user: {
-      id: string;
-      name?: string | null;
-      email?: string | null;
-      image?: string | null;
-      username: string;
-      role: UserRole;
-    } & DefaultSession["user"];
-  }
-}
-
-export const authOptions: NextAuthOptions = {
+export const authOptions = {
   adapter: PrismaAdapter(db),
-  session: { 
-    strategy: "jwt" 
-  },
+  session: { strategy: "jwt" },
   pages: {
-    signIn: "/(auth)/login",
-    error: "/(auth)/error",
+    signIn: "/auth/login",
+    error: "/auth/error",
   },
   secret: process.env.NEXTAUTH_SECRET,
   providers: [
@@ -40,24 +22,21 @@ export const authOptions: NextAuthOptions = {
       },
       async authorize(credentials) {
         if (!credentials?.username || !credentials?.password) {
-          return null;
+          return null
         }
 
         const user = await db.user.findUnique({
           where: { username: credentials.username },
-        });
+        })
 
         if (!user) {
-          return null;
+          return null
         }
 
-        const passwordMatch = await bcrypt.compare(
-          credentials.password,
-          user.password
-        );
+        const passwordMatch = await bcrypt.compare(credentials.password, user.password)
 
         if (!passwordMatch) {
-          return null;
+          return null
         }
 
         return {
@@ -67,26 +46,41 @@ export const authOptions: NextAuthOptions = {
           username: user.username,
           role: user.role,
           image: user.image,
-        };
+        }
       },
     }),
   ],
   callbacks: {
     async jwt({ token, user }) {
       if (user) {
-        token.id = user.id;
-        token.username = user.username;
-        token.role = user.role;
+        token.id = user.id
+        token.username = user.username
+        token.role = user.role
+        // Añadir log para depuración
+        console.log("JWT callback - user role:", user.role)
       }
-      return token;
+      return token
     },
     async session({ session, token }) {
       if (token) {
-        session.user.id = token.id as string;
-        session.user.username = token.username as string;
-        session.user.role = token.role as UserRole;
+        session.user.id = token.id as string
+        session.user.username = token.username as string
+        session.user.role = token.role as string
+        // Añadir log para depuración
+        console.log("Session callback - user role:", token.role)
       }
-      return session;
+      return session
     },
   },
-};
+}
+
+export const { handlers, signIn, signOut } = NextAuth(authOptions)
+
+export const auth = async () => {
+  try {
+    return await handlers.GET({ headers: new Headers() })
+  } catch (error) {
+    console.error("Auth error:", error)
+    return null
+  }
+}

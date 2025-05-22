@@ -1,15 +1,8 @@
-"use client";
+"use client"
 
-import { useState } from "react";
-import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from "@/components/ui/table";
-import { Button } from "@/components/ui/button";
+import { useState } from "react"
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
+import { Button } from "@/components/ui/button"
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -17,87 +10,112 @@ import {
   DropdownMenuLabel,
   DropdownMenuSeparator,
   DropdownMenuTrigger,
-} from "@/components/ui/dropdown-menu";
-import { MoreHorizontal, Plus } from "lucide-react";
-import { Badge } from "@/components/ui/badge";
-import { useRouter } from "next/navigation";
-import { UsuarioDialog } from "./usuario-dialog";
-import { useToast } from "@/hooks/use-toast";
+} from "@/components/ui/dropdown-menu"
+import { MoreHorizontal, Plus } from "lucide-react"
+import { Badge } from "@/components/ui/badge"
+import { useRouter } from "next/navigation"
+import { UsuarioDialog } from "./usuario-dialog"
+import { useToast } from "@/hooks/use-toast"
 
 type Usuario = {
-  id: string;
-  name: string | null;
-  username: string;
-  email: string | null;
-  role: string;
-  municipio: { nombre: string } | null;
-};
+  id: string
+  name: string | null
+  username: string
+  email: string | null
+  role: string
+  municipio: { nombre: string } | null
+}
 
 export function UsuariosTable({ usuarios }: { usuarios: Usuario[] }) {
-  const router = useRouter();
-  const { toast } = useToast();
-  const [isDialogOpen, setIsDialogOpen] = useState(false);
-  const [selectedUsuario, setSelectedUsuario] = useState<Usuario | null>(null);
-  const [isCreating, setIsCreating] = useState(false);
+  const router = useRouter()
+  const { toast } = useToast()
+  const [isDialogOpen, setIsDialogOpen] = useState(false)
+  const [selectedUsuario, setSelectedUsuario] = useState<Usuario | null>(null)
+  const [isCreating, setIsCreating] = useState(false)
+  const [error, setError] = useState<string | null>(null)
 
   const handleEdit = (usuario: Usuario) => {
-    setSelectedUsuario(usuario);
-    setIsCreating(false);
-    setIsDialogOpen(true);
-  };
+    setSelectedUsuario(usuario)
+    setIsCreating(false)
+    setIsDialogOpen(true)
+  }
 
   const handleCreate = () => {
-    setSelectedUsuario(null);
-    setIsCreating(true);
-    setIsDialogOpen(true);
-  };
+    setSelectedUsuario(null)
+    setIsCreating(true)
+    setIsDialogOpen(true)
+  }
 
   const handleDelete = async (id: string) => {
     if (confirm("¿Estás seguro de que deseas eliminar este usuario?")) {
       try {
         const response = await fetch(`/api/usuarios/${id}`, {
           method: "DELETE",
-        });
+        })
 
         if (response.ok) {
           toast({
             title: "Usuario eliminado",
             description: "El usuario ha sido eliminado exitosamente",
-          });
-          router.refresh();
+          })
+          router.refresh()
         } else {
-          const data = await response.json();
+          const data = await response.json()
           toast({
             title: "Error",
             description: data.error || "Error al eliminar el usuario",
             variant: "destructive",
-          });
+          })
         }
       } catch (error) {
         toast({
           title: "Error",
           description: "Ocurrió un error al eliminar el usuario",
           variant: "destructive",
-        });
+        })
       }
     }
-  };
+  }
 
   const getRoleBadgeVariant = (role: string) => {
     switch (role) {
       case "SUPER_USER":
-        return "destructive";
+        return "destructive"
       case "ADMIN":
-        return "default";
+        return "default"
       case "EDITOR":
-        return "secondary";
+        return "secondary"
       default:
-        return "outline";
+        return "outline"
     }
-  };
+  }
+
+  const fetchUsuarios = async () => {
+    try {
+      const response = await fetch("/api/usuarios")
+      if (!response.ok) {
+        const data = await response.json()
+        setError(`Error ${response.status}: ${data.error || "Error desconocido"}`)
+        if (data.currentRole) {
+          setError(`${error} - Rol actual: ${data.currentRole}`)
+        }
+        return
+      }
+      const data = await response.json()
+      // Procesar datos...
+    } catch (error) {
+      setError(`Error al cargar usuarios: ${error.message}`)
+    }
+  }
 
   return (
     <>
+      {error && (
+        <div className="bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded mb-4">
+          <p>{error}</p>
+        </div>
+      )}
+
       <div className="flex justify-end mb-4">
         <Button onClick={handleCreate}>
           <Plus className="mr-2 h-4 w-4" />
@@ -131,9 +149,7 @@ export function UsuariosTable({ usuarios }: { usuarios: Usuario[] }) {
                   <TableCell>{usuario.username}</TableCell>
                   <TableCell>{usuario.email || "-"}</TableCell>
                   <TableCell>
-                    <Badge variant={getRoleBadgeVariant(usuario.role)}>
-                      {usuario.role}
-                    </Badge>
+                    <Badge variant={getRoleBadgeVariant(usuario.role)}>{usuario.role}</Badge>
                   </TableCell>
                   <TableCell>{usuario.municipio?.nombre || "-"}</TableCell>
                   <TableCell>
@@ -147,9 +163,7 @@ export function UsuariosTable({ usuarios }: { usuarios: Usuario[] }) {
                       <DropdownMenuContent align="end">
                         <DropdownMenuLabel>Acciones</DropdownMenuLabel>
                         <DropdownMenuSeparator />
-                        <DropdownMenuItem onClick={() => handleEdit(usuario)}>
-                          Editar
-                        </DropdownMenuItem>
+                        <DropdownMenuItem onClick={() => handleEdit(usuario)}>Editar</DropdownMenuItem>
                         <DropdownMenuItem
                           onClick={() => handleDelete(usuario.id)}
                           className="text-destructive focus:text-destructive"
@@ -173,5 +187,5 @@ export function UsuariosTable({ usuarios }: { usuarios: Usuario[] }) {
         isCreating={isCreating}
       />
     </>
-  );
+  )
 }

@@ -7,7 +7,7 @@ import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Progress } from "@/components/ui/progress"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
-import { Upload, FileText, Database, AlertCircle, Settings, CheckCircle2, XCircle } from "lucide-react"
+import { Upload, FileText, Database, AlertCircle, Settings, CheckCircle2, XCircle, Info } from "lucide-react"
 import Papa from "papaparse"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import {
@@ -24,6 +24,7 @@ import { Label } from "@/components/ui/label"
 import { CardSpotlight } from "@/components/ui/card-spotlight"
 import { Badge } from "@/components/ui/badge"
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from "@/components/ui/accordion"
+import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert"
 
 interface CsvUploaderProps {
   defaultUrl?: string
@@ -41,6 +42,7 @@ export function CsvUploader({ defaultUrl, onDataLoaded, onError, onLoadingChange
   const [fileName, setFileName] = useState<string | null>(null)
   const fileInputRef = useRef<HTMLInputElement>(null)
   const [isSuccess, setIsSuccess] = useState(false)
+  const [warnings, setWarnings] = useState<string[]>([])
 
   // Opciones avanzadas para el parsing
   const [delimiter, setDelimiter] = useState<string>("auto")
@@ -116,6 +118,52 @@ export function CsvUploader({ defaultUrl, onDataLoaded, onError, onLoadingChange
               })
             }
 
+            // Verificar si faltan columnas importantes
+            const newWarnings: string[] = []
+            if (processedData.length > 0) {
+              const firstRow = processedData[0] as Record<string, any>
+
+              // Verificar si existe la columna SECCION
+              if (!("SECCION" in firstRow)) {
+                newWarnings.push("No se encontró la columna SECCION. Esto puede afectar el análisis por sección.")
+              }
+
+              // Verificar si faltan DISTRITO o MUNICIPIO
+              if (!("DISTRITO" in firstRow)) {
+                newWarnings.push(
+                  "No se encontró la columna DISTRITO. Se intentará obtener esta información de la base de datos.",
+                )
+              }
+
+              if (!("MUNICIPIO" in firstRow)) {
+                newWarnings.push(
+                  "No se encontró la columna MUNICIPIO. Se intentará obtener esta información de la base de datos.",
+                )
+              }
+
+              // Verificar si hay columnas de partidos
+              const partidosColumns = Object.keys(firstRow).filter(
+                (key) =>
+                  ![
+                    "SECCION",
+                    "DISTRITO",
+                    "MUNICIPIO",
+                    "LISTA_NOMINAL",
+                    "CASILLA",
+                    "LOCALIDAD",
+                    "TOTAL_VOTOS",
+                  ].includes(key),
+              )
+
+              if (partidosColumns.length === 0) {
+                newWarnings.push(
+                  "No se encontraron columnas de partidos políticos. Esto afectará el análisis de resultados.",
+                )
+              }
+            }
+
+            setWarnings(newWarnings)
+
             onDataLoaded(processedData as any[])
             setProgress(100)
             setError(null)
@@ -154,6 +202,7 @@ export function CsvUploader({ defaultUrl, onDataLoaded, onError, onLoadingChange
     onLoadingChange(true)
     setProgress(0)
     setError(null)
+    setWarnings([])
     setIsSuccess(false)
 
     // Leer el archivo como texto
@@ -186,6 +235,7 @@ export function CsvUploader({ defaultUrl, onDataLoaded, onError, onLoadingChange
     onLoadingChange(true)
     setProgress(10)
     setError(null)
+    setWarnings([])
     setIsSuccess(false)
 
     try {
@@ -220,6 +270,7 @@ export function CsvUploader({ defaultUrl, onDataLoaded, onError, onLoadingChange
     onLoadingChange(true)
     setProgress(10)
     setError(null)
+    setWarnings([])
     setIsSuccess(false)
 
     try {
@@ -247,6 +298,7 @@ export function CsvUploader({ defaultUrl, onDataLoaded, onError, onLoadingChange
     if (fileContent) {
       onLoadingChange(true)
       setProgress(50)
+      setWarnings([])
       processCsvData(fileContent, "reprocess")
     } else {
       setError("No hay archivo para procesar. Carga un archivo primero.")
@@ -387,6 +439,20 @@ export function CsvUploader({ defaultUrl, onDataLoaded, onError, onLoadingChange
             </div>
           </div>
         </div>
+      )}
+
+      {warnings.length > 0 && (
+        <Alert className="bg-amber-50 border-amber-200">
+          <Info className="h-4 w-4 text-amber-600" />
+          <AlertTitle className="text-amber-800">Advertencias</AlertTitle>
+          <AlertDescription className="text-amber-700">
+            <ul className="list-disc pl-5 space-y-1 text-sm">
+              {warnings.map((warning, index) => (
+                <li key={index}>{warning}</li>
+              ))}
+            </ul>
+          </AlertDescription>
+        </Alert>
       )}
 
       {/* Opciones avanzadas */}
@@ -535,10 +601,12 @@ export function CsvUploader({ defaultUrl, onDataLoaded, onError, onLoadingChange
                   <span className="font-medium">SECCION</span>: Identificador de la sección electoral
                 </li>
                 <li>
-                  <span className="font-medium">DISTRITO</span>: Número de distrito
+                  <span className="font-medium">DISTRITO</span>: Número de distrito (opcional, se obtendrá de la base de
+                  datos si no está presente)
                 </li>
                 <li>
-                  <span className="font-medium">MUNICIPIO</span>: Nombre del municipio
+                  <span className="font-medium">MUNICIPIO</span>: Nombre del municipio (opcional, se obtendrá de la base
+                  de datos si no está presente)
                 </li>
                 <li>
                   <span className="font-medium">LISTA_NOMINAL</span>: Número de votantes registrados

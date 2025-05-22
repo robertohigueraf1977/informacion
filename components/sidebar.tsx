@@ -21,6 +21,7 @@ import {
   FileBarChart,
   Flag,
   Globe,
+  PieChart,
 } from "lucide-react"
 import { useTheme } from "next-themes"
 import { useSession } from "next-auth/react"
@@ -92,17 +93,17 @@ const routes = [
     icon: FileBarChart,
     href: "/votos",
     roles: [UserRole.SUPER_USER, UserRole.ADMIN],
-  },  
-  {
-    label: "Metas y Resultados",
-    icon: FileBarChart,
-    href: "/metasresultados",
-    roles: [UserRole.SUPER_USER, UserRole.ADMIN]
   },
   {
     label: "Mapa Electoral",
     icon: Globe,
     href: "/mapa",
+    roles: [UserRole.SUPER_USER, UserRole.ADMIN, UserRole.USER],
+  },
+  {
+    label: "Metas y Resultados",
+    icon: PieChart,
+    href: "/metasresultados",
     roles: [UserRole.SUPER_USER, UserRole.ADMIN, UserRole.USER],
   },
 ]
@@ -191,7 +192,8 @@ export function Sidebar() {
         <div className="flex items-center justify-between">
           <p className="text-sm font-medium">Admin</p>
           <Button variant="ghost" size="icon" onClick={() => setTheme(theme === "dark" ? "light" : "dark")}>
-            {theme === "dark" ? <Sun className="h-4 w-4" /> : <Moon className="h-4 w-4" />}
+            <Sun className="h-4 w-4 dark:hidden" />
+            <Moon className="h-4 w-4 hidden dark:block" />
           </Button>
         </div>
         <div className="mt-2">
