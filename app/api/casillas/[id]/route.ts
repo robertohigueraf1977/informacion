@@ -1,7 +1,8 @@
 import { NextResponse } from "next/server"
 import { db } from "@/lib/db"
-import { getServerSession } from "next-auth"
+import { getServerSession } from "next-auth/next"
 import { authOptions } from "@/auth"
+import { UserRole } from "@prisma/client"
 
 export async function GET(req: Request, { params }: { params: { id: string } }) {
   try {
@@ -18,13 +19,9 @@ export async function GET(req: Request, { params }: { params: { id: string } }) 
       where: { id },
       include: {
         seccion: {
-          select: {
-            nombre: true,
-            municipio: {
-              select: {
-                nombre: true,
-              },
-            },
+          include: {
+            municipio: true,
+            distritoLocal: true,
           },
         },
         votos: true,
@@ -33,6 +30,28 @@ export async function GET(req: Request, { params }: { params: { id: string } }) 
 
     if (!casilla) {
       return NextResponse.json({ error: "Casilla no encontrada" }, { status: 404 })
+    }
+
+    // Verificar permisos para EDITOR y USER
+    if (session.user.role !== UserRole.SUPER_USER && session.user.role !== UserRole.ADMIN) {
+      const user = await db.user.findUnique({
+        where: { id: session.user.id },
+        select: {
+          distritoLocalId: true,
+          municipioId: true,
+        },
+      })
+
+      if (!user?.distritoLocalId || !user?.municipioId) {
+        return NextResponse.json({ error: "Usuario sin distrito local o municipio asignado" }, { status: 403 })
+      }
+
+      if (
+        casilla.seccion?.distritoLocalId !== user.distritoLocalId ||
+        casilla.seccion?.municipioId !== user.municipioId
+      ) {
+        return NextResponse.json({ error: "No tienes permisos para ver esta casilla" }, { status: 403 })
+      }
     }
 
     return NextResponse.json(casilla)
@@ -62,10 +81,71 @@ export async function PUT(req: Request, { params }: { params: { id: string } }) 
     // Verificar si la casilla existe
     const existingCasilla = await db.casilla.findUnique({
       where: { id },
+      include: {
+        seccion: {
+          include: {
+            municipio: true,
+            distritoLocal: true,
+          },
+        },
+      },
     })
 
     if (!existingCasilla) {
       return NextResponse.json({ error: "Casilla no encontrada" }, { status: 404 })
+    }
+
+    // Verificar permisos para EDITOR y USER
+    if (session.user.role !== UserRole.SUPER_USER && session.user.role !== UserRole.ADMIN) {
+      const user = await db.user.findUnique({
+        where: { id: session.user.id },
+        select: {
+          distritoLocalId: true,
+          municipioId: true,
+        },
+      })
+
+      if (!user?.distritoLocalId || !user?.municipioId) {
+        return NextResponse.json({ error: "Usuario sin distrito local o municipio asignado" }, { status: 403 })
+      }
+
+      if (
+        existingCasilla.seccion?.distritoLocalId !== user.distritoLocalId ||
+        existingCasilla.seccion?.municipioId !== user.municipioId
+      ) {
+        return NextResponse.json({ error: "No tienes permisos para editar esta casilla" }, { status: 403 })
+      }
+    }
+
+    // Verificar la nueva sección
+    const nuevaSeccion = await db.seccion.findUnique({
+      where: { id: Number(seccionId) },
+      include: {
+        municipio: true,
+        distritoLocal: true,
+      },
+    })
+
+    if (!nuevaSeccion) {
+      return NextResponse.json({ error: "La nueva sección no existe" }, { status: 400 })
+    }
+
+    // Verificar permisos para la nueva sección
+    if (session.user.role !== UserRole.SUPER_USER && session.user.role !== UserRole.ADMIN) {
+      const user = await db.user.findUnique({
+        where: { id: session.user.id },
+        select: {
+          distritoLocalId: true,
+          municipioId: true,
+        },
+      })
+
+      if (nuevaSeccion.distritoLocalId !== user?.distritoLocalId || nuevaSeccion.municipioId !== user?.municipioId) {
+        return NextResponse.json(
+          { error: "No puedes asignar casillas a secciones fuera de tu distrito local y municipio" },
+          { status: 403 },
+        )
+      }
     }
 
     // Verificar si ya existe otra casilla con la misma sección
@@ -114,11 +194,39 @@ export async function DELETE(req: Request, { params }: { params: { id: string } 
       where: { id },
       include: {
         votos: true,
+        seccion: {
+          include: {
+            municipio: true,
+            distritoLocal: true,
+          },
+        },
       },
     })
 
     if (!existingCasilla) {
       return NextResponse.json({ error: "Casilla no encontrada" }, { status: 404 })
+    }
+
+    // Verificar permisos para EDITOR y USER
+    if (session.user.role !== UserRole.SUPER_USER && session.user.role !== UserRole.ADMIN) {
+      const user = await db.user.findUnique({
+        where: { id: session.user.id },
+        select: {
+          distritoLocalId: true,
+          municipioId: true,
+        },
+      })
+
+      if (!user?.distritoLocalId || !user?.municipioId) {
+        return NextResponse.json({ error: "Usuario sin distrito local o municipio asignado" }, { status: 403 })
+      }
+
+      if (
+        existingCasilla.seccion?.distritoLocalId !== user.distritoLocalId ||
+        existingCasilla.seccion?.municipioId !== user.municipioId
+      ) {
+        return NextResponse.json({ error: "No tienes permisos para eliminar esta casilla" }, { status: 403 })
+      }
     }
 
     // Verificar si tiene votos asociados
@@ -142,4 +250,3 @@ export async function DELETE(req: Request, { params }: { params: { id: string } 
     return NextResponse.json({ error: "Error interno del servidor" }, { status: 500 })
   }
 }
-

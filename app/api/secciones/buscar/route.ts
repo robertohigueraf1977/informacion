@@ -1,79 +1,94 @@
 import { NextResponse } from "next/server"
 import { db } from "@/lib/db"
-import { getServerSession } from "next-auth"
+import { getServerSession } from "next-auth/next"
 import { authOptions } from "@/auth"
+import { UserRole } from "@/lib/types"
 
-export async function GET(req: Request) {
+export async function GET(request: Request) {
   try {
     const session = await getServerSession(authOptions)
 
-    // Verificar si el usuario está autenticado
     if (!session?.user) {
-      return NextResponse.json({ error: "No autorizado" }, { status: 403 })
+      return NextResponse.json({ error: "No autorizado" }, { status: 401 })
     }
 
-    // Obtener parámetros de búsqueda
-    const url = new URL(req.url)
-    const search = url.searchParams.get("search") || ""
-    const municipioId = url.searchParams.get("municipioId") ? Number(url.searchParams.get("municipioId")) : undefined
-    const distritoLocalId = url.searchParams.get("distritoLocalId")
-      ? Number(url.searchParams.get("distritoLocalId"))
-      : undefined
-    const distritoFederalId = url.searchParams.get("distritoFederalId")
-      ? Number(url.searchParams.get("distritoFederalId"))
-      : undefined
+    const { searchParams } = new URL(request.url)
+    const query = searchParams.get("q")
 
-    // Construir la consulta con filtros opcionales
-    const whereClause: any = {}
+    if (!query || query.length < 2) {
+      return NextResponse.json([])
+    }
 
-    if (search) {
-      whereClause.nombre = {
-        contains: search,
+    let secciones = []
+
+    // SUPER_USER y ADMIN pueden buscar en todas las secciones
+    if (session.user.role === UserRole.SUPER_USER || session.user.role === UserRole.ADMIN) {
+      secciones = await db.seccion.findMany({
+        where: {
+          OR: [
+            { nombre: { contains: query, mode: "insensitive" } },
+          ],
+        },
+        select: {
+          id: true,
+          nombre: true,
+          municipio: {
+            select: {
+              nombre: true,
+            },
+          },
+          distritoLocal: {
+            select: {
+              nombre: true,
+            },
+          },
+        },
+        take: 10,
+      })
+    }
+    // EDITOR y USER solo pueden buscar en secciones de su distrito local y municipio
+    else {
+      const user = await db.user.findUnique({
+        where: { id: session.user.id },
+        include: {
+          distritoLocal: true,
+          municipio: true,
+        },
+      })
+
+      if (!user?.distritoLocalId || !user?.municipioId) {
+        return NextResponse.json({ error: "Usuario sin distrito local o municipio asignado" }, { status: 400 })
       }
-    }
 
-    if (municipioId) {
-      whereClause.municipioId = municipioId
-    }
-
-    if (distritoLocalId) {
-      whereClause.distritoLocalId = distritoLocalId
-    }
-
-    if (distritoFederalId) {
-      whereClause.distritoFederalId = distritoFederalId
-    }
-
-    // Buscar secciones con los filtros aplicados
-    const secciones = await db.seccion.findMany({
-      where: whereClause,
-      select: {
-        id: true,
-        nombre: true,
-        municipio: {
-          select: {
-            id: true,
-            nombre: true,
+      secciones = await db.seccion.findMany({
+        where: {
+          AND: [
+            { distritoLocalId: user.distritoLocalId },
+            { municipioId: user.municipioId },
+            {
+              OR: [
+                { nombre: { contains: query, mode: "insensitive" } },
+              ],
+            },
+          ],
+        },
+        select: {
+          id: true,
+          nombre: true,
+          municipio: {
+            select: {
+              nombre: true,
+            },
+          },
+          distritoLocal: {
+            select: {
+              nombre: true,
+            },
           },
         },
-        distritoLocal: {
-          select: {
-            id: true,
-            nombre: true,
-          },
-        },
-        distritoFederal: {
-          select: {
-            id: true,
-            nombre: true,
-          },
-        },
-      },
-      orderBy: {
-        nombre: "asc",
-      },
-      take: 50, // Limitar resultados para mejor rendimiento
-    })
+        take: 10,
+      })
+    }
 
     return NextResponse.json(secciones)
   } catch (error) {

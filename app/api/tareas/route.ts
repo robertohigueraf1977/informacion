@@ -18,7 +18,11 @@ export async function GET(request: Request) {
     if (session.user.role === UserRole.SUPER_USER || session.user.role === UserRole.ADMIN) {
       tareas = await db.tarea.findMany({
         include: {
-          persona: true,
+          persona: {
+            include: {
+              seccion: true,
+            },
+          },
           creador: {
             select: {
               id: true,
@@ -30,61 +34,52 @@ export async function GET(request: Request) {
         orderBy: { createdAt: "desc" },
       })
     }
-    // EDITOR y USER solo pueden ver tareas de su municipio
+    // EDITOR y USER solo pueden ver tareas de personas en su distrito local y municipio
     else {
-      // Obtener el usuario con su municipio
+      // Obtener el usuario con su distrito local y municipio
       const user = await db.user.findUnique({
         where: { id: session.user.id },
-        include: { municipio: true },
+        include: {
+          municipio: true,
+          distritoLocal: true,
+        },
       })
 
-      if (user?.municipioId) {
-        tareas = await db.tarea.findMany({
-          where: {
-            OR: [
-              {
-                persona: {
-                  domicilio: {
-                    municipioId: user.municipioId,
-                  },
+      if (!user?.distritoLocalId || !user?.municipioId) {
+        return NextResponse.json({ error: "Usuario sin distrito local o municipio asignado" }, { status: 400 })
+      }
+
+      tareas = await db.tarea.findMany({
+        where: {
+          OR: [
+            {
+              persona: {
+                seccion: {
+                  AND: [{ distritoLocalId: user.distritoLocalId }, { municipioId: user.municipioId }],
                 },
               },
-              {
-                creadorId: session.user.id,
-              },
-            ],
-          },
-          include: {
-            persona: true,
-            creador: {
-              select: {
-                id: true,
-                name: true,
-                username: true,
-              },
+            },
+            {
+              creadorId: session.user.id,
+            },
+          ],
+        },
+        include: {
+          persona: {
+            include: {
+              seccion: true,
             },
           },
-          orderBy: { createdAt: "desc" },
-        })
-      } else {
-        // Si el usuario no tiene municipio asignado, solo mostrar sus propias tareas
-        tareas = await db.tarea.findMany({
-          where: {
-            creadorId: session.user.id,
-          },
-          include: {
-            persona: true,
-            creador: {
-              select: {
-                id: true,
-                name: true,
-                username: true,
-              },
+          creador: {
+            select: {
+              id: true,
+              name: true,
+              username: true,
             },
           },
-          orderBy: { createdAt: "desc" },
-        })
-      }
+        },
+        orderBy: { createdAt: "desc" },
+      })
     }
 
     return NextResponse.json(tareas)
@@ -124,31 +119,40 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: "La persona es requerida" }, { status: 400 })
     }
 
-    // Si es EDITOR, verificar que la persona pertenezca a su municipio
+    // Si es EDITOR, verificar que la persona pertenezca a su distrito local y municipio
     if (session.user.role === UserRole.EDITOR) {
-      // Obtener el usuario con su municipio
+      // Obtener el usuario con su distrito local y municipio
       const user = await db.user.findUnique({
         where: { id: session.user.id },
-        include: { municipio: true },
+        include: {
+          municipio: true,
+          distritoLocal: true,
+        },
       })
 
-      if (!user?.municipioId) {
-        return NextResponse.json({ error: "Usuario sin municipio asignado" }, { status: 400 })
+      if (!user?.distritoLocalId || !user?.municipioId) {
+        return NextResponse.json({ error: "Usuario sin distrito local o municipio asignado" }, { status: 400 })
       }
 
-      // Verificar que la persona pertenezca al municipio del usuario
+      // Verificar que la persona pertenezca al distrito local y municipio del usuario
       const persona = await db.persona.findUnique({
         where: { id: Number(data.personaId) },
-        include: { domicilio: true },
+        include: {
+          domicilio: true,
+          seccion: true,
+        },
       })
 
       if (!persona) {
         return NextResponse.json({ error: "Persona no encontrada" }, { status: 404 })
       }
 
-      if (persona.domicilio?.municipioId !== user.municipioId) {
+      if (
+        persona.seccion?.distritoLocalId !== user.distritoLocalId ||
+        persona.seccion?.municipioId !== user.municipioId
+      ) {
         return NextResponse.json(
-          { error: "No puedes crear tareas para personas fuera de tu municipio" },
+          { error: "No puedes crear tareas para personas fuera de tu distrito local y municipio" },
           { status: 403 },
         )
       }
@@ -156,20 +160,15 @@ export async function POST(request: Request) {
 
     // SUPER_USER y ADMIN pueden crear tareas para cualquier persona
     // Crear tarea
-    const tareaData: any = {
-      titulo: data.titulo,
-      descripcion: data.descripcion || null,
-      completada: data.completada || false,
-      creadorId: session.user.id,
-      personaId: Number(data.personaId),
-    };
-
-    if (data.fecha) {
-      tareaData.fecha = new Date(data.fecha);
-    }
-
     const tarea = await db.tarea.create({
-      data: tareaData,
+      data: {
+        titulo: data.titulo,
+        descripcion: data.descripcion || null,
+        fecha: data.fecha ? new Date(data.fecha) : data.fecha,
+        completada: data.completada || false,
+        creadorId: session.user.id,
+        personaId: Number(data.personaId),
+      },
     })
 
     return NextResponse.json(tarea)

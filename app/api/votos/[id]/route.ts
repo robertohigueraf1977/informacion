@@ -1,7 +1,8 @@
 import { NextResponse } from "next/server"
 import { db } from "@/lib/db"
-import { getServerSession } from "next-auth"
+import { getServerSession } from "next-auth/next"
 import { authOptions } from "@/auth"
+import { UserRole } from "@prisma/client"
 
 export async function GET(req: Request, { params }: { params: { id: string } }) {
   try {
@@ -18,16 +19,11 @@ export async function GET(req: Request, { params }: { params: { id: string } }) 
       where: { id },
       include: {
         casilla: {
-          select: {
-            numero: true,
+          include: {
             seccion: {
-              select: {
-                nombre: true,
-                municipio: {
-                  select: {
-                    nombre: true,
-                  },
-                },
+              include: {
+                municipio: true,
+                distritoLocal: true,
               },
             },
           },
@@ -38,6 +34,28 @@ export async function GET(req: Request, { params }: { params: { id: string } }) 
 
     if (!voto) {
       return NextResponse.json({ error: "Voto no encontrado" }, { status: 404 })
+    }
+
+    // Verificar permisos para EDITOR y USER
+    if (session.user.role !== UserRole.SUPER_USER && session.user.role !== UserRole.ADMIN) {
+      const user = await db.user.findUnique({
+        where: { id: session.user.id },
+        select: {
+          distritoLocalId: true,
+          municipioId: true,
+        },
+      })
+
+      if (!user?.distritoLocalId || !user?.municipioId) {
+        return NextResponse.json({ error: "Usuario sin distrito local o municipio asignado" }, { status: 403 })
+      }
+
+      if (
+        voto.casilla?.seccion?.distritoLocalId !== user.distritoLocalId ||
+        voto.casilla?.seccion?.municipioId !== user.municipioId
+      ) {
+        return NextResponse.json({ error: "No tienes permisos para ver este voto" }, { status: 403 })
+      }
     }
 
     return NextResponse.json(voto)
@@ -71,10 +89,84 @@ export async function PUT(req: Request, { params }: { params: { id: string } }) 
     // Verificar si el voto existe
     const existingVoto = await db.voto.findUnique({
       where: { id },
+      include: {
+        casilla: {
+          include: {
+            seccion: {
+              include: {
+                municipio: true,
+                distritoLocal: true,
+              },
+            },
+          },
+        },
+      },
     })
 
     if (!existingVoto) {
       return NextResponse.json({ error: "Voto no encontrado" }, { status: 404 })
+    }
+
+    // Verificar permisos para EDITOR y USER
+    if (session.user.role !== UserRole.SUPER_USER && session.user.role !== UserRole.ADMIN) {
+      const user = await db.user.findUnique({
+        where: { id: session.user.id },
+        select: {
+          distritoLocalId: true,
+          municipioId: true,
+        },
+      })
+
+      if (!user?.distritoLocalId || !user?.municipioId) {
+        return NextResponse.json({ error: "Usuario sin distrito local o municipio asignado" }, { status: 403 })
+      }
+
+      if (
+        existingVoto.casilla?.seccion?.distritoLocalId !== user.distritoLocalId ||
+        existingVoto.casilla?.seccion?.municipioId !== user.municipioId
+      ) {
+        return NextResponse.json({ error: "No tienes permisos para editar este voto" }, { status: 403 })
+      }
+    }
+
+    // Verificar la nueva casilla si se está cambiando
+    if (Number(casillaId) !== existingVoto.casillaId) {
+      const nuevaCasilla = await db.casilla.findUnique({
+        where: { id: Number(casillaId) },
+        include: {
+          seccion: {
+            include: {
+              municipio: true,
+              distritoLocal: true,
+            },
+          },
+        },
+      })
+
+      if (!nuevaCasilla) {
+        return NextResponse.json({ error: "La nueva casilla no existe" }, { status: 400 })
+      }
+
+      // Verificar permisos para la nueva casilla
+      if (session.user.role !== UserRole.SUPER_USER && session.user.role !== UserRole.ADMIN) {
+        const user = await db.user.findUnique({
+          where: { id: session.user.id },
+          select: {
+            distritoLocalId: true,
+            municipioId: true,
+          },
+        })
+
+        if (
+          nuevaCasilla.seccion?.distritoLocalId !== user?.distritoLocalId ||
+          nuevaCasilla.seccion?.municipioId !== user?.municipioId
+        ) {
+          return NextResponse.json(
+            { error: "No puedes asignar votos a casillas fuera de tu distrito local y municipio" },
+            { status: 403 },
+          )
+        }
+      }
     }
 
     // Verificar si ya existe otro voto para la misma casilla y partido
@@ -126,10 +218,44 @@ export async function DELETE(req: Request, { params }: { params: { id: string } 
     // Verificar si el voto existe
     const existingVoto = await db.voto.findUnique({
       where: { id },
+      include: {
+        casilla: {
+          include: {
+            seccion: {
+              include: {
+                municipio: true,
+                distritoLocal: true,
+              },
+            },
+          },
+        },
+      },
     })
 
     if (!existingVoto) {
       return NextResponse.json({ error: "Voto no encontrado" }, { status: 404 })
+    }
+
+    // Verificar permisos para EDITOR y USER
+    if (session.user.role !== UserRole.SUPER_USER && session.user.role !== UserRole.ADMIN) {
+      const user = await db.user.findUnique({
+        where: { id: session.user.id },
+        select: {
+          distritoLocalId: true,
+          municipioId: true,
+        },
+      })
+
+      if (!user?.distritoLocalId || !user?.municipioId) {
+        return NextResponse.json({ error: "Usuario sin distrito local o municipio asignado" }, { status: 403 })
+      }
+
+      if (
+        existingVoto.casilla?.seccion?.distritoLocalId !== user.distritoLocalId ||
+        existingVoto.casilla?.seccion?.municipioId !== user.municipioId
+      ) {
+        return NextResponse.json({ error: "No tienes permisos para eliminar este voto" }, { status: 403 })
+      }
     }
 
     // Eliminar el voto
@@ -143,4 +269,3 @@ export async function DELETE(req: Request, { params }: { params: { id: string } 
     return NextResponse.json({ error: "Error interno del servidor" }, { status: 500 })
   }
 }
-

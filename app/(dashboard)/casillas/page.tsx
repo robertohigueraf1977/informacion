@@ -1,4 +1,4 @@
-import { getServerSession } from "next-auth"
+import { getServerSession } from "next-auth/next"
 import { authOptions } from "@/auth"
 import { redirect } from "next/navigation"
 import Link from "next/link"
@@ -6,6 +6,7 @@ import { db } from "@/lib/db"
 import { Button } from "@/components/ui/button"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
 import { Plus, FileBarChart } from "lucide-react"
+import { UserRole } from "@prisma/client"
 
 export default async function CasillasPage() {
   const session = await getServerSession(authOptions)
@@ -14,33 +15,96 @@ export default async function CasillasPage() {
     redirect("/auth/login")
   }
 
-  const casillas = await db.casilla.findMany({
-    select: {
-      id: true,
-      numero: true,
-      seccion: {
+  let casillas = []
+
+  try {
+    // SUPER_USER y ADMIN pueden ver todas las casillas
+    if (session.user.role === UserRole.SUPER_USER || session.user.role === UserRole.ADMIN) {
+      casillas = await db.casilla.findMany({
         select: {
           id: true,
-          nombre: true,
-          municipio: {
+          numero: true,
+          seccion: {
             select: {
+              id: true,
               nombre: true,
+              municipio: {
+                select: {
+                  nombre: true,
+                },
+              },
+              distritoLocal: {
+                select: {
+                  nombre: true,
+                },
+              },
+            },
+          },
+          votos: {
+            select: {
+              id: true,
             },
           },
         },
-      },
-      votos: {
+        orderBy: [
+          {
+            seccionId: "asc",
+          },
+        ],
+      })
+    } else {
+      // EDITOR y USER solo pueden ver casillas de su distrito local y municipio
+      const user = await db.user.findUnique({
+        where: { id: session.user.id },
         select: {
-          id: true,
+          distritoLocalId: true,
+          municipioId: true,
         },
-      },
-    },
-    orderBy: [
-      {
-        seccionId: "asc",
-      },
-    ],
-  })
+      })
+
+      if (user?.distritoLocalId && user?.municipioId) {
+        casillas = await db.casilla.findMany({
+          where: {
+            seccion: {
+              AND: [{ distritoLocalId: user.distritoLocalId }, { municipioId: user.municipioId }],
+            },
+          },
+          select: {
+            id: true,
+            numero: true,
+            seccion: {
+              select: {
+                id: true,
+                nombre: true,
+                municipio: {
+                  select: {
+                    nombre: true,
+                  },
+                },
+                distritoLocal: {
+                  select: {
+                    nombre: true,
+                  },
+                },
+              },
+            },
+            votos: {
+              select: {
+                id: true,
+              },
+            },
+          },
+          orderBy: [
+            {
+              seccionId: "asc",
+            },
+          ],
+        })
+      }
+    }
+  } catch (error) {
+    console.error("Error al cargar casillas:", error)
+  }
 
   return (
     <div className="space-y-6">
@@ -64,6 +128,7 @@ export default async function CasillasPage() {
               <TableHead>Número</TableHead>
               <TableHead>Sección</TableHead>
               <TableHead>Municipio</TableHead>
+              <TableHead>Distrito Local</TableHead>
               <TableHead>Votos</TableHead>
               <TableHead className="w-[150px]">Acciones</TableHead>
             </TableRow>
@@ -71,7 +136,7 @@ export default async function CasillasPage() {
           <TableBody>
             {casillas.length === 0 ? (
               <TableRow>
-                <TableCell colSpan={5} className="text-center">
+                <TableCell colSpan={6} className="text-center">
                   No hay casillas registradas
                 </TableCell>
               </TableRow>
@@ -81,6 +146,7 @@ export default async function CasillasPage() {
                   <TableCell>{casilla.numero}</TableCell>
                   <TableCell>{casilla.seccion?.nombre || "-"}</TableCell>
                   <TableCell>{casilla.seccion?.municipio?.nombre || "-"}</TableCell>
+                  <TableCell>{casilla.seccion?.distritoLocal?.nombre || "-"}</TableCell>
                   <TableCell>{casilla.votos.length}</TableCell>
                   <TableCell>
                     <div className="flex space-x-2">
@@ -104,4 +170,3 @@ export default async function CasillasPage() {
     </div>
   )
 }
-

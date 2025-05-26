@@ -1,6 +1,6 @@
 "use client"
 
-import { useState } from "react"
+import { useState, useEffect } from "react"
 import { useForm } from "react-hook-form"
 import { zodResolver } from "@hookform/resolvers/zod"
 import * as z from "zod"
@@ -23,6 +23,9 @@ type Seccion = {
   municipio: {
     nombre: string
   }
+  distritoLocal?: {
+    nombre: string
+  }
 }
 
 interface CasillaFormProps {
@@ -38,6 +41,7 @@ export function CasillaForm({ casilla, secciones }: CasillaFormProps) {
   const router = useRouter()
   const { toast } = useToast()
   const [isLoading, setIsLoading] = useState(false)
+  const [filteredSecciones, setFilteredSecciones] = useState(secciones)
   const isEditing = !!casilla
 
   const form = useForm<z.infer<typeof formSchema>>({
@@ -46,6 +50,12 @@ export function CasillaForm({ casilla, secciones }: CasillaFormProps) {
       seccionId: casilla?.seccionId ? String(casilla.seccionId) : "",
     },
   })
+
+  // Filtrar secciones basado en permisos del usuario
+  useEffect(() => {
+    // Las secciones ya vienen filtradas desde el servidor según los permisos del usuario
+    setFilteredSecciones(secciones)
+  }, [secciones])
 
   const onSubmit = async (values: z.infer<typeof formSchema>) => {
     setIsLoading(true)
@@ -112,9 +122,10 @@ export function CasillaForm({ casilla, secciones }: CasillaFormProps) {
                         </SelectTrigger>
                       </FormControl>
                       <SelectContent>
-                        {secciones.map((seccion) => (
+                        {filteredSecciones.map((seccion) => (
                           <SelectItem key={seccion.id} value={String(seccion.id)}>
                             {seccion.nombre} - {seccion.municipio.nombre}
+                            {seccion.distritoLocal && ` (${seccion.distritoLocal.nombre})`}
                           </SelectItem>
                         ))}
                       </SelectContent>
@@ -138,4 +149,3 @@ export function CasillaForm({ casilla, secciones }: CasillaFormProps) {
     </Card>
   )
 }
-

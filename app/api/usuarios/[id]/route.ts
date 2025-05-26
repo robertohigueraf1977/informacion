@@ -1,23 +1,20 @@
-import { NextResponse } from "next/server";
-import { db } from "@/lib/db";
-import { authOptions } from "@/auth";
-import { UserRole } from "@prisma/client";
-import bcrypt from "bcryptjs";
-import { getServerSession } from "next-auth";
+import { NextResponse } from "next/server"
+import { db } from "@/lib/db"
+import { authOptions } from "@/auth"
+import { UserRole } from "@prisma/client"
+import bcrypt from "bcryptjs"
+import { getServerSession } from "next-auth/next"
 
-export async function GET(
-  req: Request,
-  { params }: { params: { id: string } }
-) {
+export async function GET(req: Request, { params }: { params: { id: string } }) {
   try {
-    const session = await getServerSession(authOptions);
+    const session = await getServerSession(authOptions)
 
     // Verificar si el usuario está autenticado y es SUPER_USER
     if (!session?.user || session.user.role !== UserRole.SUPER_USER) {
-      return NextResponse.json({ error: "No autorizado" }, { status: 403 });
+      return NextResponse.json({ error: "No autorizado" }, { status: 403 })
     }
 
-    const id = params.id;
+    const id = params.id
 
     const usuario = await db.user.findUnique({
       where: { id },
@@ -28,64 +25,71 @@ export async function GET(
         email: true,
         role: true,
         municipioId: true,
+        distritoLocalId: true,
+        distritoFederalId: true,
         municipio: {
           select: {
             nombre: true,
           },
         },
+        distritoLocal: {
+          select: {
+            nombre: true,
+          },
+        },
+        distritoFederal: {
+          select: {
+            nombre: true,
+          },
+        },
       },
-    });
+    })
 
     if (!usuario) {
-      return NextResponse.json(
-        { error: "Usuario no encontrado" },
-        { status: 404 }
-      );
+      return NextResponse.json({ error: "Usuario no encontrado" }, { status: 404 })
     }
 
-    return NextResponse.json(usuario);
+    return NextResponse.json(usuario)
   } catch (error) {
-    console.error("Error al obtener usuario:", error);
-    return NextResponse.json(
-      { error: "Error interno del servidor" },
-      { status: 500 }
-    );
+    console.error("Error al obtener usuario:", error)
+    return NextResponse.json({ error: "Error interno del servidor" }, { status: 500 })
   }
 }
 
-export async function PUT(
-  req: Request,
-  { params }: { params: { id: string } }
-) {
+export async function PUT(req: Request, { params }: { params: { id: string } }) {
   try {
-    const session = await getServerSession(authOptions);
+    const session = await getServerSession(authOptions)
 
     // Verificar si el usuario está autenticado y es SUPER_USER
     if (!session?.user || session.user.role !== UserRole.SUPER_USER) {
-      return NextResponse.json({ error: "No autorizado" }, { status: 403 });
+      return NextResponse.json({ error: "No autorizado" }, { status: 403 })
     }
 
-    const id = params.id;
-    const body = await req.json();
-    const { name, username, email, password, role, municipioId } = body;
+    const id = params.id
+    const body = await req.json()
+    const { name, username, email, password, role, municipioId, distritoLocalId, distritoFederalId } = body
 
     if (!name || !username) {
+      return NextResponse.json({ error: "Faltan campos requeridos" }, { status: 400 })
+    }
+
+    // Validar que EDITOR y USER tengan distrito local y municipio
+    if ((role === "EDITOR" || role === "USER") && (!distritoLocalId || !municipioId)) {
       return NextResponse.json(
-        { error: "Faltan campos requeridos" },
-        { status: 400 }
-      );
+        {
+          error: "Los usuarios EDITOR y USER deben tener asignado un distrito local y municipio",
+        },
+        { status: 400 },
+      )
     }
 
     // Verificar si el usuario existe
     const existingUser = await db.user.findUnique({
       where: { id },
-    });
+    })
 
     if (!existingUser) {
-      return NextResponse.json(
-        { error: "Usuario no encontrado" },
-        { status: 404 }
-      );
+      return NextResponse.json({ error: "Usuario no encontrado" }, { status: 404 })
     }
 
     // Verificar si el username o email ya están en uso por otro usuario
@@ -96,13 +100,29 @@ export async function PUT(
           { email, NOT: { id } },
         ],
       },
-    });
+    })
 
     if (duplicateUser) {
-      return NextResponse.json(
-        { error: "El nombre de usuario o correo electrónico ya está en uso" },
-        { status: 400 }
-      );
+      return NextResponse.json({ error: "El nombre de usuario o correo electrónico ya está en uso" }, { status: 400 })
+    }
+
+    // Validar que el distrito local y municipio existan si se proporcionan
+    if (distritoLocalId) {
+      const distritoExists = await db.distritoLocal.findUnique({
+        where: { id: distritoLocalId },
+      })
+      if (!distritoExists) {
+        return NextResponse.json({ error: "El distrito local especificado no existe" }, { status: 400 })
+      }
+    }
+
+    if (municipioId) {
+      const municipioExists = await db.municipio.findUnique({
+        where: { id: municipioId },
+      })
+      if (!municipioExists) {
+        return NextResponse.json({ error: "El municipio especificado no existe" }, { status: 400 })
+      }
     }
 
     // Preparar los datos para actualizar
@@ -112,77 +132,95 @@ export async function PUT(
       email: email || null,
       role: role as UserRole,
       municipioId: municipioId || null,
-    };
+      distritoLocalId: distritoLocalId || null,
+      distritoFederalId: distritoFederalId || null,
+    }
 
     // Si se proporciona una nueva contraseña, encriptarla
     if (password) {
-      updateData.password = await bcrypt.hash(password, 10);
+      updateData.password = await bcrypt.hash(password, 10)
     }
 
     // Actualizar el usuario
     const updatedUser = await db.user.update({
       where: { id },
       data: updateData,
-    });
+      include: {
+        municipio: {
+          select: {
+            nombre: true,
+          },
+        },
+        distritoLocal: {
+          select: {
+            nombre: true,
+          },
+        },
+        distritoFederal: {
+          select: {
+            nombre: true,
+          },
+        },
+      },
+    })
 
     // Eliminar la contraseña de la respuesta
-    const { password: _, ...userWithoutPassword } = updatedUser;
+    const { password: _, ...userWithoutPassword } = updatedUser
 
-    return NextResponse.json(userWithoutPassword);
+    return NextResponse.json(userWithoutPassword)
   } catch (error) {
-    console.error("Error al actualizar usuario:", error);
-    return NextResponse.json(
-      { error: "Error interno del servidor" },
-      { status: 500 }
-    );
+    console.error("Error al actualizar usuario:", error)
+    return NextResponse.json({ error: "Error interno del servidor" }, { status: 500 })
   }
 }
 
-export async function DELETE(
-  req: Request,
-  { params }: { params: { id: string } }
-) {
+export async function DELETE(req: Request, { params }: { params: { id: string } }) {
   try {
-    const session = await getServerSession(authOptions);
+    const session = await getServerSession(authOptions)
 
     // Verificar si el usuario está autenticado y es SUPER_USER
     if (!session?.user || session.user.role !== UserRole.SUPER_USER) {
-      return NextResponse.json({ error: "No autorizado" }, { status: 403 });
+      return NextResponse.json({ error: "No autorizado" }, { status: 403 })
     }
 
-    const id = params.id;
+    const id = params.id
 
     // Verificar si el usuario existe
     const existingUser = await db.user.findUnique({
       where: { id },
-    });
+    })
 
     if (!existingUser) {
-      return NextResponse.json(
-        { error: "Usuario no encontrado" },
-        { status: 404 }
-      );
+      return NextResponse.json({ error: "Usuario no encontrado" }, { status: 404 })
     }
 
     // No permitir eliminar al propio usuario
     if (id === session.user.id) {
+      return NextResponse.json({ error: "No puedes eliminar tu propio usuario" }, { status: 400 })
+    }
+
+    // Verificar si el usuario tiene tareas asignadas
+    const tareasAsignadas = await db.tarea.count({
+      where: { personaId: Number(id) },
+    })
+
+    if (tareasAsignadas > 0) {
       return NextResponse.json(
-        { error: "No puedes eliminar tu propio usuario" },
-        { status: 400 }
-      );
+        {
+          error: "No se puede eliminar el usuario porque tiene tareas asignadas",
+        },
+        { status: 400 },
+      )
     }
 
     // Eliminar el usuario
     await db.user.delete({
       where: { id },
-    });
+    })
 
-    return NextResponse.json({ success: true });
+    return NextResponse.json({ success: true })
   } catch (error) {
-    console.error("Error al eliminar usuario:", error);
-    return NextResponse.json(
-      { error: "Error interno del servidor" },
-      { status: 500 }
-    );
+    console.error("Error al eliminar usuario:", error)
+    return NextResponse.json({ error: "Error interno del servidor" }, { status: 500 })
   }
 }

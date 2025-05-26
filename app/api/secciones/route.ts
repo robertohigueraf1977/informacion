@@ -2,122 +2,87 @@ import { NextResponse } from "next/server"
 import { db } from "@/lib/db"
 import { getServerSession } from "next-auth/next"
 import { authOptions } from "@/auth"
+import { UserRole } from "@/lib/types"
 
-// Modificar la función GET para filtrar por distrito/municipio del usuario
 export async function GET() {
   try {
     const session = await getServerSession(authOptions)
 
-    // Verificar si el usuario está autenticado
     if (!session?.user) {
-      return NextResponse.json({ error: "No autorizado" }, { status: 403 })
+      return NextResponse.json({ error: "No autorizado" }, { status: 401 })
     }
 
-    let whereClause = {}
+    let secciones = []
 
-    // Si el usuario no es admin, filtrar por su distrito/municipio
-    if (session.user.role !== "ADMIN") {
-      // Obtener el usuario con su información de distrito y municipio
-      const usuario = await db.user.findUnique({
+    // SUPER_USER y ADMIN pueden ver todas las secciones
+    if (session.user.role === UserRole.SUPER_USER || session.user.role === UserRole.ADMIN) {
+      secciones = await db.seccion.findMany({
+        include: {
+          municipio: {
+            select: {
+              nombre: true,
+            },
+          },
+          distritoLocal: {
+            select: {
+              nombre: true,
+            },
+          },
+          distritoFederal: {
+            select: {
+              nombre: true,
+            },
+          },
+        },
+        orderBy: {
+          nombre: "asc",
+        },
+      })
+    }
+    // EDITOR y USER solo pueden ver secciones de su distrito local y municipio
+    else {
+      const user = await db.user.findUnique({
         where: { id: session.user.id },
         include: {
-          municipio: true,
           distritoLocal: true,
-          distritoFederal: true,
+          municipio: true,
         },
       })
 
-      whereClause = {
-        OR: [
-          { municipioId: usuario?.municipio?.id },
-          { distritoLocalId: usuario?.distritoLocal?.id },
-          { distritoFederalId: usuario?.distritoFederal?.id },
-        ],
+      if (!user?.distritoLocalId || !user?.municipioId) {
+        return NextResponse.json({ error: "Usuario sin distrito local o municipio asignado" }, { status: 400 })
       }
-    }
 
-    const secciones = await db.seccion.findMany({
-      where: whereClause,
-      select: {
-        id: true,
-        nombre: true,
-        municipio: {
-          select: {
-            nombre: true,
+      secciones = await db.seccion.findMany({
+        where: {
+          AND: [{ distritoLocalId: user.distritoLocalId }, { municipioId: user.municipioId }],
+        },
+        include: {
+          municipio: {
+            select: {
+              nombre: true,
+            },
+          },
+          distritoLocal: {
+            select: {
+              nombre: true,
+            },
+          },
+          distritoFederal: {
+            select: {
+              nombre: true,
+            },
           },
         },
-        distritoLocal: {
-          select: {
-            nombre: true,
-          },
+        orderBy: {
+          nombre: "asc",
         },
-        distritoFederal: {
-          select: {
-            nombre: true,
-          },
-        },
-      },
-      orderBy: {
-        nombre: "asc",
-      },
-    })
+      })
+    }
 
     return NextResponse.json(secciones)
   } catch (error) {
     console.error("Error al obtener secciones:", error)
-    return NextResponse.json({ error: "Error interno del servidor" }, { status: 500 })
-  }
-}
-
-export async function POST(req: Request) {
-  try {
-    const session = await getServerSession(authOptions)
-
-    // Verificar si el usuario está autenticado
-    if (!session?.user) {
-      return NextResponse.json({ error: "No autorizado" }, { status: 403 })
-    }
-
-    const body = await req.json()
-    const { nombre, municipioId, distritoLocalId, distritoFederalId } = body
-
-    if (!nombre || !municipioId) {
-      return NextResponse.json({ error: "El nombre y el municipio son requeridos" }, { status: 400 })
-    }
-
-    // Verificar si la sección ya existe en el mismo municipio
-    const existingSeccion = await db.seccion.findFirst({
-      where: {
-        nombre,
-        municipioId: Number(municipioId),
-      },
-    })
-
-    if (existingSeccion) {
-      return NextResponse.json(
-        { error: "Ya existe una sección con ese nombre en el municipio seleccionado" },
-        { status: 400 },
-      )
-    }
-
-    // Crear la sección
-    const data: any = {
-      nombre,
-      municipioId: Number(municipioId),
-    }
-    if (distritoLocalId !== undefined && distritoLocalId !== null && distritoLocalId !== "") {
-      data.distritoLocalId = Number(distritoLocalId)
-    }
-    if (distritoFederalId !== undefined && distritoFederalId !== null && distritoFederalId !== "") {
-      data.distritoFederalId = Number(distritoFederalId)
-    }
-    const seccion = await db.seccion.create({
-      data,
-    })
-
-    return NextResponse.json(seccion, { status: 201 })
-  } catch (error) {
-    console.error("Error al crear sección:", error)
     return NextResponse.json({ error: "Error interno del servidor" }, { status: 500 })
   }
 }

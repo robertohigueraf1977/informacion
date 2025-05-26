@@ -24,23 +24,35 @@ export async function GET() {
         },
       })
     }
-    // EDITOR y USER solo pueden ver personas de su municipio
+    // EDITOR y USER solo pueden ver personas de su distrito local y municipio
     else {
-      // Obtener el usuario con su municipio
+      // Obtener el usuario con su distrito local y municipio
       const user = await db.user.findUnique({
         where: { id: session.user.id },
-        include: { municipio: true },
+        include: {
+          municipio: true,
+          distritoLocal: true,
+        },
       })
 
-      if (!user?.municipioId) {
-        return NextResponse.json({ error: "Usuario sin municipio asignado" }, { status: 400 })
+      if (!user?.distritoLocalId || !user?.municipioId) {
+        return NextResponse.json({ error: "Usuario sin distrito local o municipio asignado" }, { status: 400 })
       }
 
       personas = await db.persona.findMany({
         where: {
-          domicilio: {
-            municipioId: user.municipioId,
-          },
+          AND: [
+            {
+              seccion: {
+                distritoLocalId: user.distritoLocalId,
+              },
+            },
+            {
+              seccion: {
+                municipioId: user.municipioId,
+              },
+            },
+          ],
         },
         include: {
           domicilio: true,
@@ -76,19 +88,33 @@ export async function POST(req: Request) {
     const body = await req.json()
     console.log("POST /api/personas - Body recibido:", JSON.stringify(body, null, 2))
 
-    // Verificar que EDITOR solo crea personas en su municipio
+    // Verificar que EDITOR solo crea personas en su distrito local y municipio
     if (session.user.role === UserRole.EDITOR) {
       const user = await db.user.findUnique({
         where: { id: session.user.id },
-        include: { municipio: true },
+        include: {
+          municipio: true,
+          distritoLocal: true,
+        },
       })
 
-      if (!user?.municipioId) {
-        return NextResponse.json({ error: "Usuario sin municipio asignado" }, { status: 400 })
+      if (!user?.distritoLocalId || !user?.municipioId) {
+        return NextResponse.json({ error: "Usuario sin distrito local o municipio asignado" }, { status: 400 })
       }
 
-      // Verificar que el municipio de la persona coincide con el del usuario
-      // Nota: Ya no verificamos domicilioId porque ahora creamos el domicilio en la misma transacción
+      // Verificar que la sección pertenece al distrito local y municipio del usuario
+      if (body.seccionId) {
+        const seccion = await db.seccion.findUnique({
+          where: { id: Number(body.seccionId) },
+        })
+
+        if (!seccion || seccion.distritoLocalId !== user.distritoLocalId || seccion.municipioId !== user.municipioId) {
+          return NextResponse.json(
+            { error: "No puedes crear personas en secciones fuera de tu distrito local y municipio" },
+            { status: 403 },
+          )
+        }
+      }
     }
 
     const {
@@ -118,32 +144,6 @@ export async function POST(req: Request) {
     console.log("POST /api/personas - Validando campos requeridos")
     if (!nombre || !apellidoPaterno || !calle) {
       return NextResponse.json({ error: "Faltan campos requeridos" }, { status: 400 })
-    }
-
-    // Si el usuario no es admin o super_user, verificar que la sección pertenezca a su distrito/municipio
-    if (session.user.role !== UserRole.ADMIN && session.user.role !== UserRole.SUPER_USER && seccionId) {
-      console.log("POST /api/personas - Verificando permisos para sección")
-      const usuario = await db.user.findUnique({
-        where: { id: session.user.id },
-        include: {
-          municipio: true,
-          distritoLocal: true,
-          distritoFederal: true,
-        },
-      })
-
-      const seccion = await db.seccion.findUnique({
-        where: { id: Number(seccionId) },
-      })
-
-      if (
-        !seccion ||
-        (seccion.municipioId !== usuario?.municipio?.id &&
-          seccion.distritoLocalId !== usuario?.distritoLocal?.id &&
-          seccion.distritoFederalId !== usuario?.distritoFederal?.id)
-      ) {
-        return NextResponse.json({ error: "No tienes permisos para crear personas en esta sección" }, { status: 403 })
-      }
     }
 
     console.log("POST /api/personas - Iniciando transacción")
@@ -185,7 +185,7 @@ export async function POST(req: Request) {
             longitud: longitud ? Number.parseFloat(longitud) : null,
             personaId: persona.id,
             seccionId: seccionId ? Number(seccionId) : null,
-            municipioId: null, // Añadir municipioId basado en la sección si es necesario
+            municipioId: null,
           },
         })
 
