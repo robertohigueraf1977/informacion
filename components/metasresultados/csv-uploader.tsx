@@ -7,7 +7,7 @@ import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Progress } from "@/components/ui/progress"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
-import { Upload, FileText, Database, AlertCircle, Settings, CheckCircle2, XCircle, Info } from "lucide-react"
+import { Upload, FileText, Database, AlertCircle, Settings, CheckCircle2, XCircle, Info, Download } from "lucide-react"
 import Papa from "papaparse"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import {
@@ -44,13 +44,39 @@ export function CsvUploader({ defaultUrl, onDataLoaded, onError, onLoadingChange
   const [isSuccess, setIsSuccess] = useState(false)
   const [warnings, setWarnings] = useState<string[]>([])
 
-  // Opciones avanzadas para el parsing
-  const [delimiter, setDelimiter] = useState<string>("auto")
+  // Opciones avanzadas para el parsing - configuradas para la estructura electoral específica
+  const [delimiter, setDelimiter] = useState<string>(",") // Coma por defecto según el esquema
   const [encoding, setEncoding] = useState<string>("UTF-8")
   const [skipEmptyLines, setSkipEmptyLines] = useState<boolean>(true)
   const [forceProcess, setForceProcess] = useState<boolean>(false)
   const [headerRow, setHeaderRow] = useState<boolean>(true)
   const [previewData, setPreviewData] = useState<string | null>(null)
+
+  // Estructura esperada según el esquema proporcionado
+  const expectedColumns = [
+    "DISTRITO_F",
+    "DISTRITO_L",
+    "MUNICIPIO",
+    "SECCION",
+    "PAN",
+    "LISTA_NOMINAL",
+    "PVEM_PT",
+    "PRI",
+    "PVEM",
+    "NO_REGISTRADAS",
+    "NULOS",
+    "PT",
+    "MC",
+    "PRD",
+    "PAN-PRI-PRD",
+    "PAN-PRI",
+    "PAN-PRD",
+    "PRI-PRD",
+    "PVEM_PT_MORENA",
+    "PVEM_MORENA",
+    "PT_MORENA",
+    "MORENA",
+  ]
 
   // Función para procesar el CSV con las opciones configuradas
   const processCsvData = (csvText: string, source: string) => {
@@ -65,26 +91,29 @@ export function CsvUploader({ defaultUrl, onDataLoaded, onError, onLoadingChange
     // Mostrar una vista previa de los primeros 500 caracteres
     setPreviewData(csvText.substring(0, 500) + (csvText.length > 500 ? "..." : ""))
 
-    // Configurar opciones de parsing
+    // Configurar opciones de parsing para datos electorales
     const parseOptions: Papa.ParseConfig = {
       header: headerRow,
-      dynamicTyping: true,
+      dynamicTyping: false, // Mantener como string para control manual
       skipEmptyLines: skipEmptyLines,
-      transformHeader: (header) => header.trim(),
+      delimiter: delimiter === "auto" ? undefined : delimiter,
+      transformHeader: (header) => header.trim().toUpperCase(),
       encoding: encoding,
       transform: (value, field) => {
         // Limpiar valores antes de convertir
         if (typeof value === "string") {
           value = value.trim()
         }
-        // Convert string numbers to actual numbers
-        if (field !== "SECCION" && value !== "" && value !== "-" && !isNaN(Number(value))) {
+
+        // Convertir números para campos numéricos específicos
+        if (field && isNumericField(field) && value !== "" && value !== "-" && !isNaN(Number(value))) {
           return Number(value)
         }
+
         return value
       },
       complete: (results) => {
-        console.log("Resultados del parsing:", results)
+        console.log("Resultados del parsing electoral:", results)
 
         if (results.errors.length > 0) {
           console.error("Errores de parsing:", results.errors)
@@ -96,82 +125,23 @@ export function CsvUploader({ defaultUrl, onDataLoaded, onError, onLoadingChange
           onError("El archivo no contiene datos válidos")
           setIsSuccess(false)
         } else {
-          // Si estamos forzando el procesamiento o los datos parecen válidos
-          if (
-            forceProcess ||
-            (Array.isArray(results.data) &&
-              results.data[0] &&
-              (headerRow ? Object.keys(results.data[0]).length > 1 : results.data[0].length > 1))
-          ) {
-            // Si no hay encabezados, crear encabezados genéricos
-            let processedData = results.data
-            if (!headerRow && Array.isArray(results.data) && results.data.length > 0) {
-              const firstRow = results.data[0] as any[]
-              const headers = firstRow.map((_, index) => `Column${index + 1}`)
+          // Validar estructura de datos electorales
+          const validationResult = validateElectoralData(results.data as any[])
 
-              processedData = results.data.map((row) => {
-                const rowObj: Record<string, any> = {}
-                ;(row as any[]).forEach((value, index) => {
-                  rowObj[headers[index]] = value
-                })
-                return rowObj
-              })
-            }
+          if (!validationResult.isValid && !forceProcess) {
+            setError(`Estructura de datos inválida: ${validationResult.errors.join(", ")}`)
+            onError(`Estructura de datos inválida: ${validationResult.errors.join(", ")}`)
+            setIsSuccess(false)
+            setWarnings(validationResult.warnings)
+          } else {
+            // Procesar y normalizar los datos
+            const processedData = normalizeElectoralData(results.data as any[])
 
-            // Verificar si faltan columnas importantes
-            const newWarnings: string[] = []
-            if (processedData.length > 0) {
-              const firstRow = processedData[0] as Record<string, any>
-
-              // Verificar si existe la columna SECCION
-              if (!("SECCION" in firstRow)) {
-                newWarnings.push("No se encontró la columna SECCION. Esto puede afectar el análisis por sección.")
-              }
-
-              // Verificar si faltan DISTRITO o MUNICIPIO
-              if (!("DISTRITO" in firstRow)) {
-                newWarnings.push(
-                  "No se encontró la columna DISTRITO. Se intentará obtener esta información de la base de datos.",
-                )
-              }
-
-              if (!("MUNICIPIO" in firstRow)) {
-                newWarnings.push(
-                  "No se encontró la columna MUNICIPIO. Se intentará obtener esta información de la base de datos.",
-                )
-              }
-
-              // Verificar si hay columnas de partidos
-              const partidosColumns = Object.keys(firstRow).filter(
-                (key) =>
-                  ![
-                    "SECCION",
-                    "DISTRITO",
-                    "MUNICIPIO",
-                    "LISTA_NOMINAL",
-                    "CASILLA",
-                    "LOCALIDAD",
-                    "TOTAL_VOTOS",
-                  ].includes(key),
-              )
-
-              if (partidosColumns.length === 0) {
-                newWarnings.push(
-                  "No se encontraron columnas de partidos políticos. Esto afectará el análisis de resultados.",
-                )
-              }
-            }
-
-            setWarnings(newWarnings)
-
-            onDataLoaded(processedData as any[])
+            setWarnings(validationResult.warnings)
+            onDataLoaded(processedData)
             setProgress(100)
             setError(null)
             setIsSuccess(true)
-          } else {
-            setError("El formato del archivo no es válido. Prueba con las opciones avanzadas.")
-            onError("El formato del archivo no es válido. Prueba con las opciones avanzadas.")
-            setIsSuccess(false)
           }
         }
         onLoadingChange(false)
@@ -185,13 +155,133 @@ export function CsvUploader({ defaultUrl, onDataLoaded, onError, onLoadingChange
       },
     }
 
-    // Configurar el delimitador si no es automático
-    if (delimiter !== "auto") {
-      parseOptions.delimiter = delimiter
-    }
-
     // Procesar el CSV
     Papa.parse(csvText, parseOptions)
+  }
+
+  // Determinar si un campo debe ser numérico
+  const isNumericField = (field: string): boolean => {
+    const numericFields = [
+      "PAN",
+      "LISTA_NOMINAL",
+      "PVEM_PT",
+      "PRI",
+      "PVEM",
+      "NO_REGISTRADAS",
+      "NULOS",
+      "PT",
+      "MC",
+      "PRD",
+      "PAN-PRI-PRD",
+      "PAN-PRI",
+      "PAN-PRD",
+      "PRI-PRD",
+      "PVEM_PT_MORENA",
+      "PVEM_MORENA",
+      "PT_MORENA",
+      "MORENA",
+    ]
+    return numericFields.includes(field)
+  }
+
+  // Validar estructura de datos electorales
+  const validateElectoralData = (data: any[]) => {
+    const errors: string[] = []
+    const warnings: string[] = []
+
+    if (data.length === 0) {
+      errors.push("No hay datos para procesar")
+      return { isValid: false, errors, warnings }
+    }
+
+    const firstRow = data[0]
+    const columns = Object.keys(firstRow)
+
+    // Verificar columnas esenciales
+    const essentialColumns = ["DISTRITO_F", "DISTRITO_L", "MUNICIPIO", "SECCION"]
+    const missingEssential = essentialColumns.filter((col) => !columns.includes(col))
+
+    if (missingEssential.length > 0) {
+      errors.push(`Faltan columnas esenciales: ${missingEssential.join(", ")}`)
+    }
+
+    // Verificar si hay al menos algunos partidos principales
+    const mainParties = ["PAN", "PRI", "PRD", "PVEM", "PT", "MC", "MORENA"]
+    const foundParties = columns.filter((col) => mainParties.includes(col))
+
+    if (foundParties.length === 0) {
+      warnings.push("No se encontraron columnas de partidos políticos principales")
+    }
+
+    // Verificar LISTA_NOMINAL
+    if (!columns.includes("LISTA_NOMINAL")) {
+      warnings.push("No se encontró la columna LISTA_NOMINAL para calcular participación")
+    }
+
+    // Verificar coaliciones
+    const coalitionColumns = columns.filter((col) => col.includes("-") || col.includes("_"))
+    if (coalitionColumns.length === 0) {
+      warnings.push("No se encontraron columnas de coaliciones")
+    }
+
+    // Verificar categorías especiales
+    if (!columns.includes("NO_REGISTRADAS")) {
+      warnings.push("No se encontró la columna NO_REGISTRADAS")
+    }
+    if (!columns.includes("NULOS")) {
+      warnings.push("No se encontró la columna NULOS")
+    }
+
+    return {
+      isValid: errors.length === 0,
+      errors,
+      warnings,
+    }
+  }
+
+  // Normalizar datos electorales según el esquema
+  const normalizeElectoralData = (data: any[]) => {
+    return data
+      .map((row, index) => {
+        const normalizedRow: any = {}
+
+        // Normalizar nombres de columnas y valores
+        Object.entries(row).forEach(([key, value]) => {
+          const normalizedKey = key.trim().toUpperCase()
+
+          // Convertir valores según el tipo esperado
+          if (isNumericField(normalizedKey)) {
+            // Para campos numéricos, asegurar que sean números válidos
+            if (typeof value === "string" && value.trim() !== "" && !isNaN(Number(value))) {
+              normalizedRow[normalizedKey] = Number(value)
+            } else if (typeof value === "number") {
+              normalizedRow[normalizedKey] = value
+            } else {
+              normalizedRow[normalizedKey] = 0 // Valor por defecto para campos numéricos
+            }
+          } else {
+            // Para campos de texto (DISTRITO_F, DISTRITO_L, MUNICIPIO, SECCION)
+            normalizedRow[normalizedKey] = String(value || "").trim()
+          }
+        })
+
+        // Validar que los campos esenciales no estén vacíos
+        if (
+          !normalizedRow.DISTRITO_F ||
+          !normalizedRow.DISTRITO_L ||
+          !normalizedRow.MUNICIPIO ||
+          !normalizedRow.SECCION
+        ) {
+          console.warn(`Fila ${index + 1}: Faltan datos esenciales`, normalizedRow)
+        }
+
+        return normalizedRow
+      })
+      .filter(
+        (row) =>
+          // Filtrar filas que tengan al menos los datos básicos
+          row.DISTRITO_F && row.DISTRITO_L && row.MUNICIPIO && row.SECCION,
+      )
   }
 
   const handleFileUpload = (event: React.ChangeEvent<HTMLInputElement>) => {
@@ -283,7 +373,7 @@ export function CsvUploader({ defaultUrl, onDataLoaded, onError, onLoadingChange
       setProgress(50)
       const text = await response.text()
       setFileContent(text)
-      setFileName("datos-predeterminados.csv")
+      setFileName("resultados-presidencia.csv")
       processCsvData(text, "default")
     } catch (error) {
       setError(`Error: ${error instanceof Error ? error.message : "Desconocido"}`)
@@ -307,6 +397,46 @@ export function CsvUploader({ defaultUrl, onDataLoaded, onError, onLoadingChange
     }
   }
 
+  // Descargar plantilla CSV con la estructura exacta
+  const downloadTemplate = () => {
+    const templateHeaders = expectedColumns.join(",")
+    const sampleRow = [
+      "2", // DISTRITO_F
+      "7", // DISTRITO_L
+      "AGUASCALIENTES", // MUNICIPIO
+      "543", // SECCION
+      "139", // PAN
+      "2389", // LISTA_NOMINAL
+      "13", // PVEM_PT
+      "21", // PRI
+      "48", // PVEM
+      "1", // NO_REGISTRADAS
+      "34", // NULOS
+      "37", // PT
+      "72", // MC
+      "10", // PRD
+      "15", // PAN-PRI-PRD
+      "3", // PAN-PRI
+      "0", // PAN-PRD
+      "1", // PRI-PRD
+      "59", // PVEM_PT_MORENA
+      "9", // PVEM_MORENA
+      "12", // PT_MORENA
+      "557", // MORENA
+    ].join(",")
+
+    const csvContent = `${templateHeaders}\n${sampleRow}`
+    const blob = new Blob([csvContent], { type: "text/csv;charset=utf-8;" })
+    const url = URL.createObjectURL(blob)
+    const link = document.createElement("a")
+    link.setAttribute("href", url)
+    link.setAttribute("download", "plantilla_resultados_presidencia.csv")
+    link.style.visibility = "hidden"
+    document.body.appendChild(link)
+    link.click()
+    document.body.removeChild(link)
+  }
+
   return (
     <div className="space-y-6 animate-in fade-in-50">
       <Tabs value={uploadTab} onValueChange={setUploadTab} className="w-full">
@@ -327,7 +457,7 @@ export function CsvUploader({ defaultUrl, onDataLoaded, onError, onLoadingChange
             value="default"
             className="data-[state=active]:bg-primary data-[state=active]:text-primary-foreground"
           >
-            Datos Predeterminados
+            Resultados Presidencia
           </TabsTrigger>
         </TabsList>
 
@@ -342,19 +472,20 @@ export function CsvUploader({ defaultUrl, onDataLoaded, onError, onLoadingChange
               </div>
               <h3 className="font-medium text-lg mb-2">Arrastra y suelta tu archivo CSV</h3>
               <p className="text-sm text-muted-foreground mb-4 max-w-md">
-                O haz clic aquí para seleccionar un archivo. El archivo debe contener datos de resultados electorales.
+                O haz clic aquí para seleccionar un archivo. El archivo debe contener resultados electorales de
+                presidencia con la estructura especificada.
               </p>
-              <input
-                ref={fileInputRef}
-                type="file"
-                accept=".csv,.txt,.tsv"
-                onChange={handleFileUpload}
-                className="hidden"
-              />
-              <Button onClick={() => fileInputRef.current?.click()} className="flex items-center gap-2">
-                <Upload className="h-4 w-4" />
-                Seleccionar Archivo
-              </Button>
+              <input ref={fileInputRef} type="file" accept=".csv,.txt" onChange={handleFileUpload} className="hidden" />
+              <div className="flex gap-2">
+                <Button onClick={() => fileInputRef.current?.click()} className="flex items-center gap-2">
+                  <Upload className="h-4 w-4" />
+                  Seleccionar Archivo
+                </Button>
+                <Button onClick={downloadTemplate} variant="outline" className="flex items-center gap-2">
+                  <Download className="h-4 w-4" />
+                  Descargar Plantilla
+                </Button>
+              </div>
             </div>
           </CardSpotlight>
         </TabsContent>
@@ -364,11 +495,11 @@ export function CsvUploader({ defaultUrl, onDataLoaded, onError, onLoadingChange
             <div className="flex flex-col space-y-4">
               <h3 className="font-medium text-lg">Desde URL</h3>
               <p className="text-sm text-muted-foreground mb-2">
-                Introduce la URL de un archivo CSV acces2ible públicamente
+                Introduce la URL de un archivo CSV con resultados electorales accesible públicamente
               </p>
               <div className="flex items-center space-x-2">
                 <Input
-                  placeholder="https://ejemplo.com/datos.csv"
+                  placeholder="https://ejemplo.com/resultados-presidencia.csv"
                   value={url}
                   onChange={(e) => setUrl(e.target.value)}
                   className="flex-1"
@@ -378,7 +509,7 @@ export function CsvUploader({ defaultUrl, onDataLoaded, onError, onLoadingChange
                 </Button>
               </div>
               <div className="text-xs text-muted-foreground">
-                La URL debe apuntar directamente a un archivo CSV descargable.
+                La URL debe apuntar directamente a un archivo CSV descargable con resultados electorales.
               </div>
             </div>
           </CardSpotlight>
@@ -389,13 +520,20 @@ export function CsvUploader({ defaultUrl, onDataLoaded, onError, onLoadingChange
             <div className="h-20 w-20 rounded-full bg-primary/10 flex items-center justify-center mb-6">
               <Database className="h-10 w-10 text-primary/60" />
             </div>
-            <h3 className="font-medium text-lg mb-2">Usar datos predeterminados</h3>
+            <h3 className="font-medium text-lg mb-2">Resultados Presidencia 2024</h3>
             <p className="text-sm text-muted-foreground mb-4 max-w-md">
-              Carga el conjunto de datos de resultados electorales predeterminado para comenzar rápidamente.
+              Carga los resultados oficiales de la elección presidencial 2024 para comenzar el análisis electoral.
             </p>
+            <div className="text-xs text-muted-foreground mb-4 p-3 bg-blue-50 rounded-md">
+              <strong>Archivo:</strong> resultados presidencia.csv
+              <br />
+              <strong>Estructura:</strong> 22 columnas con datos por distrito, municipio y sección
+              <br />
+              <strong>Partidos:</strong> PAN, PRI, PRD, PVEM, PT, MC, MORENA + Coaliciones
+            </div>
             <Button onClick={handleUseDefaultData} className="flex items-center gap-2">
               <Database className="h-4 w-4" />
-              Cargar Datos Predeterminados
+              Cargar Resultados Presidencia
             </Button>
           </CardSpotlight>
         </TabsContent>
@@ -404,7 +542,7 @@ export function CsvUploader({ defaultUrl, onDataLoaded, onError, onLoadingChange
       {progress > 0 && (
         <div className="space-y-2 animate-in fade-in-50">
           <div className="flex justify-between text-sm">
-            <span>Procesando archivo</span>
+            <span>Procesando resultados electorales</span>
             <span>{progress}%</span>
           </div>
           <Progress value={progress} className="h-2" />
@@ -433,7 +571,7 @@ export function CsvUploader({ defaultUrl, onDataLoaded, onError, onLoadingChange
 
               {isSuccess && (
                 <p className="text-xs text-muted-foreground mt-1">
-                  El archivo se ha procesado correctamente y está listo para su análisis.
+                  Los resultados electorales se han procesado correctamente y están listos para análisis.
                 </p>
               )}
             </div>
@@ -465,9 +603,9 @@ export function CsvUploader({ defaultUrl, onDataLoaded, onError, onLoadingChange
         </DialogTrigger>
         <DialogContent className="sm:max-w-[600px]">
           <DialogHeader>
-            <DialogTitle>Opciones avanzadas de importación CSV</DialogTitle>
+            <DialogTitle>Opciones avanzadas de importación</DialogTitle>
             <DialogDescription>
-              Configura estas opciones si tienes problemas al cargar tu archivo CSV.
+              Configura estas opciones si tienes problemas al cargar tu archivo CSV con resultados electorales.
             </DialogDescription>
           </DialogHeader>
 
@@ -480,10 +618,10 @@ export function CsvUploader({ defaultUrl, onDataLoaded, onError, onLoadingChange
                     <SelectValue placeholder="Seleccionar delimitador" />
                   </SelectTrigger>
                   <SelectContent>
+                    <SelectItem value=",">Coma (,) - Recomendado</SelectItem>
                     <SelectItem value="auto">Auto-detectar</SelectItem>
-                    <SelectItem value=",">Coma (,)</SelectItem>
-                    <SelectItem value=";">Punto y coma (;)</SelectItem>
                     <SelectItem value="\t">Tabulación</SelectItem>
+                    <SelectItem value=";">Punto y coma (;)</SelectItem>
                     <SelectItem value="|">Barra vertical (|)</SelectItem>
                   </SelectContent>
                 </Select>
@@ -573,13 +711,13 @@ export function CsvUploader({ defaultUrl, onDataLoaded, onError, onLoadingChange
               </AccordionTrigger>
               <AccordionContent className="px-4 pb-4">
                 <ul className="list-disc pl-5 space-y-1 text-sm text-muted-foreground">
-                  <li>Asegúrate de que el archivo esté en formato CSV (valores separados por comas).</li>
-                  <li>Verifica que el archivo tenga un encabezado con los nombres de las columnas.</li>
-                  <li>Comprueba que el archivo no esté vacío y contenga datos válidos.</li>
-                  <li>Si el archivo fue creado en Excel, guárdalo explícitamente como "CSV (delimitado por comas)".</li>
-                  <li>Si el archivo usa punto y coma (;) como separador, selecciónalo en las opciones avanzadas.</li>
-                  <li>Prueba con diferentes codificaciones en las opciones avanzadas.</li>
-                  <li>Como último recurso, activa la opción "Forzar procesamiento" en las opciones avanzadas.</li>
+                  <li>Asegúrate de que el archivo esté en formato CSV con comas como separadores.</li>
+                  <li>Verifica que el archivo tenga los 22 encabezados correctos según el esquema.</li>
+                  <li>Comprueba que los datos numéricos sean válidos (sin caracteres especiales).</li>
+                  <li>Si el archivo fue exportado desde Excel, guárdalo como "CSV (delimitado por comas)".</li>
+                  <li>Descarga la plantilla para ver la estructura exacta esperada.</li>
+                  <li>Prueba con diferentes delimitadores en las opciones avanzadas.</li>
+                  <li>Como último recurso, activa la opción "Forzar procesamiento".</li>
                 </ul>
               </AccordionContent>
             </AccordionItem>
@@ -591,33 +729,55 @@ export function CsvUploader({ defaultUrl, onDataLoaded, onError, onLoadingChange
             <AccordionTrigger className="px-4 py-3 hover:no-underline">
               <div className="flex items-center gap-2">
                 <AlertCircle className="h-4 w-4 text-muted-foreground" />
-                <span>Formato esperado del CSV</span>
+                <span>Estructura esperada del archivo</span>
               </div>
             </AccordionTrigger>
             <AccordionContent className="px-4 pb-4">
-              <p className="text-sm text-muted-foreground mb-2">El archivo debe contener las siguientes columnas:</p>
-              <ul className="list-disc pl-5 space-y-1 text-sm text-muted-foreground">
-                <li>
-                  <span className="font-medium">SECCION</span>: Identificador de la sección electoral
-                </li>
-                <li>
-                  <span className="font-medium">DISTRITO</span>: Número de distrito (opcional, se obtendrá de la base de
-                  datos si no está presente)
-                </li>
-                <li>
-                  <span className="font-medium">MUNICIPIO</span>: Nombre del municipio (opcional, se obtendrá de la base
-                  de datos si no está presente)
-                </li>
-                <li>
-                  <span className="font-medium">LISTA_NOMINAL</span>: Número de votantes registrados
-                </li>
-                <li>
-                  <span className="font-medium">Partidos políticos</span> (PAN, PRI, PRD, etc.): Votos por partido
-                </li>
-                <li>
-                  <span className="font-medium">Coaliciones</span> (PAN-PRI-PRD, etc.): Votos por coalición
-                </li>
-              </ul>
+              <p className="text-sm text-muted-foreground mb-3">
+                El archivo debe contener exactamente las siguientes 22 columnas:
+              </p>
+              <div className="grid grid-cols-2 gap-4 text-sm text-muted-foreground">
+                <div>
+                  <p className="font-medium mb-2 text-foreground">Información geográfica:</p>
+                  <ul className="list-disc pl-5 space-y-1">
+                    <li>
+                      <span className="font-medium">DISTRITO_F</span>: Distrito Federal
+                    </li>
+                    <li>
+                      <span className="font-medium">DISTRITO_L</span>: Distrito Local
+                    </li>
+                    <li>
+                      <span className="font-medium">MUNICIPIO</span>: Nombre del municipio
+                    </li>
+                    <li>
+                      <span className="font-medium">SECCION</span>: Número de sección
+                    </li>
+                    <li>
+                      <span className="font-medium">LISTA_NOMINAL</span>: Votantes registrados
+                    </li>
+                  </ul>
+                </div>
+                <div>
+                  <p className="font-medium mb-2 text-foreground">Partidos y coaliciones:</p>
+                  <ul className="list-disc pl-5 space-y-1">
+                    <li>
+                      <span className="font-medium">Partidos</span>: PAN, PRI, PRD, PVEM, PT, MC, MORENA
+                    </li>
+                    <li>
+                      <span className="font-medium">Coaliciones</span>: PAN-PRI-PRD, PVEM_PT_MORENA, etc.
+                    </li>
+                    <li>
+                      <span className="font-medium">Especiales</span>: NO_REGISTRADAS, NULOS
+                    </li>
+                  </ul>
+                </div>
+              </div>
+              <div className="mt-4 p-3 bg-blue-50 rounded-md">
+                <p className="text-sm text-blue-800">
+                  <strong>Ejemplo de valores:</strong> DISTRITO_F="2", DISTRITO_L="7", MUNICIPIO="4", SECCION="543",
+                  PAN="139", LISTA_NOMINAL="2389", MORENA="557"
+                </p>
+              </div>
             </AccordionContent>
           </AccordionItem>
         </Accordion>

@@ -1,19 +1,16 @@
 import type React from "react"
+import { cn } from "@/lib/utils"
 
-interface PageHeaderProps {
+interface PageHeaderProps extends React.HTMLAttributes<HTMLDivElement> {
   title: string
   description?: string
-  actions?: React.ReactNode
 }
 
-export function PageHeader({ title, description, actions }: PageHeaderProps) {
+export function PageHeader({ title, description, className, ...props }: PageHeaderProps) {
   return (
-    <div className="flex items-center justify-between">
-      <div className="space-y-1">
-        <h1 className="text-2xl font-bold tracking-tight md:text-3xl">{title}</h1>
-        {description && <p className="text-muted-foreground">{description}</p>}
-      </div>
-      {actions && <div className="flex items-center gap-2">{actions}</div>}
+    <div className={cn("space-y-0.5", className)} {...props}>
+      <h2 className="text-2xl font-bold tracking-tight">{title}</h2>
+      {description && <p className="text-muted-foreground">{description}</p>}
     </div>
   )
 }

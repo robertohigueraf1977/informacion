@@ -1,726 +1,766 @@
 "use client"
 
+import type React from "react"
+
 import { useState, useMemo } from "react"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
-import { Slider } from "@/components/ui/slider"
-import { StatCard } from "@/components/ui/stat-card"
-import { ScrollArea } from "@/components/ui/scroll-area"
-import { Badge } from "@/components/ui/badge"
-import { AnimatedCounter } from "@/components/ui/animated-counter"
-import { CardSpotlight } from "@/components/ui/card-spotlight"
-import { Button } from "@/components/ui/button"
-import { Download, TrendingUp, TrendingDown, Target, Award, AlertTriangle } from "lucide-react"
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
+import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
-import { AlertCircle, ChevronDown, ChevronUp } from "lucide-react"
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
+import { Badge } from "@/components/ui/badge"
+import { Button } from "@/components/ui/button"
+import { DataTable } from "@/components/ui/data-table"
 import { DataTableColumnHeader } from "@/components/ui/data-table-column-header"
+import { Slider } from "@/components/ui/slider"
+import { Separator } from "@/components/ui/separator"
+import { Checkbox } from "@/components/ui/checkbox"
+import {
+  Target,
+  TrendingUp,
+  Download,
+  Filter,
+  BarChart3,
+  MapPin,
+  Users,
+  CheckCircle2,
+  AlertTriangle,
+  X,
+  Plus,
+} from "lucide-react"
 import type { ColumnDef } from "@tanstack/react-table"
 
 interface GoalsAnalyzerProps {
   data: any[]
-  partidos: string[]
-  coaliciones: { nombre: string; partidos: string[]; color: string }[]
-  selectedCoalition: string | null
-  useCoalitionVotesForGoal?: boolean // Nuevo parámetro para usar votos de coalición en lugar del total
+  partidos?: string[]
+  coaliciones?: Array<{
+    nombre: string
+    partidos: string[]
+    color: string
+  }>
+  selectedCoalition?: string | null
 }
 
 interface SectionData {
   seccion: string
-  nombre: string
   distrito: string
-  totalVotos: number
-  votosCoalicion: number
+  municipio: string
+  municipioNombre: string
+  totalVotosEmitidos: number
+  votosPartidoCoalicion: number
   porcentajeActual: number
-  metaPorcentaje: number
-  votosNecesarios: number
-  diferencia: number
+  porcentajeMeta: number
+  votosQueRepresentaMeta: number
+  status: "Alcanzada" | "Cerca" | "Lejana"
+  prioridad: "Alta" | "Media" | "Baja"
 }
 
-export function GoalsAnalyzer({
-  data,
-  partidos,
-  coaliciones,
-  selectedCoalition,
-  useCoalitionVotesForGoal = true, // Por defecto, usar votos de coalición para la meta
-}: GoalsAnalyzerProps) {
-  const [goalPercentage, setGoalPercentage] = useState<number>(36)
-  const [selectedView, setSelectedView] = useState<string>("general")
-  const [selectedSection, setSelectedSection] = useState("general")
-  const [selectedDistrict, setSelectedDistrict] = useState("todos")
-  const [sectionDataOld, setSectionData] = useState<SectionData[]>([])
-  const [error, setError] = useState<string | null>(null)
-  const [generalData, setGeneralData] = useState<{
-    totalVotos: number
-    votosCoalicion: number
-    porcentajeActual: number
-    metaPorcentaje: number
-    votosNecesarios: number
-    diferencia: number
-  }>({
-    totalVotos: 0,
-    votosCoalicion: 0,
-    porcentajeActual: 0,
-    metaPorcentaje: 0,
-    votosNecesarios: 0,
-    diferencia: 0,
-  })
+// Mapeo de códigos de municipio a nombres
+const MUNICIPIOS_MAP: Record<string, string> = {
+  "1": "Comondú",
+  "2": "Mulegé",
+  "3": "La Paz",
+  "4": "Los Cabos",
+  "5": "Loreto",
+}
 
-  // Encontrar la coalición seleccionada
-  const selectedCoalitionObj = useMemo(() => {
-    return coaliciones.find((c) => c.nombre === selectedCoalition) || coaliciones[0]
-  }, [coaliciones, selectedCoalition])
+// Todos los partidos disponibles
+const PARTIDOS_DISPONIBLES = [
+  "PAN",
+  "PRI",
+  "PRD",
+  "PVEM",
+  "PT",
+  "MC",
+  "MORENA",
+  "PAN-PRI-PRD",
+  "PAN-PRI",
+  "PAN-PRD",
+  "PRI-PRD",
+  "PVEM_PT_MORENA",
+  "PVEM_MORENA",
+  "PT_MORENA",
+  "PVEM_PT",
+]
 
-  // Calcular votos por coalición y totales
-  const { coalitionVotes, totalVotes, listaNominal, sectionData, goalVotes, difference, goalPercentageOfTotal } =
-    useMemo(() => {
-      if (!data || data.length === 0 || !selectedCoalitionObj) {
+// Componente StatCard simplificado
+function SimpleStatCard({
+  title,
+  value,
+  description,
+  icon,
+  trend,
+}: {
+  title: string
+  value: string | number
+  description: string
+  icon: React.ReactNode
+  trend?: { value: number; isPositive: boolean; suffix?: string } | null
+}) {
+  return (
+    <Card>
+      <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+        <CardTitle className="text-sm font-medium">{title}</CardTitle>
+        {icon}
+      </CardHeader>
+      <CardContent>
+        <div className="text-2xl font-bold">{value}</div>
+        <p className="text-xs text-muted-foreground">{description}</p>
+        {trend && (
+          <div className={`text-xs ${trend.isPositive ? "text-green-600" : "text-red-600"}`}>
+            {trend.value > 0 ? "+" : ""}
+            {trend.value.toFixed(1)}
+            {trend.suffix || ""}
+          </div>
+        )}
+      </CardContent>
+    </Card>
+  )
+}
+
+export function GoalsAnalyzer({ data, coaliciones = [] }: GoalsAnalyzerProps) {
+  // Estados principales
+  const [goalPercentage, setGoalPercentage] = useState(50)
+  const [selectedPartidos, setSelectedPartidos] = useState<string[]>(["MORENA"])
+  const [showPartidoSelector, setShowPartidoSelector] = useState(false)
+
+  // Estados de filtros
+  const [filtroDistrito, setFiltroDistrito] = useState("todos")
+  const [filtroMunicipio, setFiltroMunicipio] = useState("todos")
+  const [filtroSeccion, setFiltroSeccion] = useState("")
+  const [filtroStatus, setFiltroStatus] = useState("todos")
+
+  // Función para agregar/quitar partidos de la selección
+  const togglePartido = (partido: string) => {
+    setSelectedPartidos((prev) => {
+      if (prev.includes(partido)) {
+        return prev.filter((p) => p !== partido)
+      } else {
+        return [...prev, partido]
+      }
+    })
+  }
+
+  // Función para agregar coalición completa
+  const addCoalicion = (coalicion: { nombre: string; partidos: string[] }) => {
+    setSelectedPartidos((prev) => {
+      const newPartidos = [...prev]
+      coalicion.partidos.forEach((partido) => {
+        if (!newPartidos.includes(partido)) {
+          newPartidos.push(partido)
+        }
+      })
+      return newPartidos
+    })
+  }
+
+  // Función para quitar partido específico
+  const removePartido = (partido: string) => {
+    setSelectedPartidos((prev) => prev.filter((p) => p !== partido))
+  }
+
+  // Procesar datos con selección múltiple
+  const processedData = useMemo(() => {
+    if (!data || !Array.isArray(data) || data.length === 0) return []
+
+    return data
+      .map((row) => {
+        const convertToNumber = (value: any): number => {
+          if (typeof value === "number" && !isNaN(value)) return value
+          if (typeof value === "string") {
+            const parsed = Number.parseFloat(value.replace(/,/g, ""))
+            return isNaN(parsed) ? 0 : parsed
+          }
+          return 0
+        }
+
+        const seccion = String(row.SECCION || "").trim()
+        const distrito = String(row.DISTRITO_L || row.DISTRITO_F || row.DISTRITO || "").trim()
+        const municipio = String(row.MUNICIPIO || "").trim()
+        const municipioNombre = MUNICIPIOS_MAP[municipio] || municipio
+
+        // Calcular total de votos emitidos en la sección
+        let totalVotosEmitidos = 0
+        PARTIDOS_DISPONIBLES.forEach((campo) => {
+          totalVotosEmitidos += convertToNumber(row[campo])
+        })
+        totalVotosEmitidos += convertToNumber(row.NULOS) + convertToNumber(row.NO_REGISTRADAS)
+
+        // Calcular votos de los partidos/coaliciones seleccionados (SUMA)
+        let votosPartidoCoalicion = 0
+        selectedPartidos.forEach((partido) => {
+          votosPartidoCoalicion += convertToNumber(row[partido])
+        })
+
+        // Calcular porcentaje actual que representa la votación
+        const porcentajeActual = totalVotosEmitidos > 0 ? (votosPartidoCoalicion / totalVotosEmitidos) * 100 : 0
+
+        // Porcentaje meta seleccionado
+        const porcentajeMeta = goalPercentage
+
+        // Número de votos que representa el porcentaje meta
+        const votosQueRepresentaMeta = Math.ceil((porcentajeMeta / 100) * totalVotosEmitidos)
+
+        // Determinar status basado en si ya se alcanzó la meta
+        let status: "Alcanzada" | "Cerca" | "Lejana" = "Lejana"
+        if (porcentajeActual >= porcentajeMeta) {
+          status = "Alcanzada"
+        } else if (porcentajeActual >= porcentajeMeta * 0.9) {
+          status = "Cerca"
+        }
+
+        // Determinar prioridad
+        let prioridad: "Alta" | "Media" | "Baja" = "Baja"
+        if (status === "Cerca") {
+          prioridad = "Alta"
+        } else if (porcentajeActual >= porcentajeMeta * 0.7) {
+          prioridad = "Media"
+        }
+
         return {
-          coalitionVotes: 0,
-          totalVotes: 0,
-          listaNominal: 0,
-          sectionData: [],
-          goalVotes: 0,
-          difference: 0,
-          goalPercentageOfTotal: 0,
+          seccion,
+          distrito,
+          municipio,
+          municipioNombre,
+          totalVotosEmitidos,
+          votosPartidoCoalicion,
+          porcentajeActual,
+          porcentajeMeta,
+          votosQueRepresentaMeta,
+          status,
+          prioridad,
         }
+      })
+      .filter((row) => row.seccion && row.totalVotosEmitidos > 0)
+  }, [data, selectedPartidos, goalPercentage])
+
+  // Obtener opciones de filtros ordenadas
+  const opcionesFiltros = useMemo(() => {
+    const distritosSet = new Set<string>()
+    const municipiosSet = new Set<string>()
+
+    processedData.forEach((d) => {
+      if (d.distrito) {
+        distritosSet.add(d.distrito)
       }
-
-      // Calcular votos totales y de la coalición
-      let totalVotesSum = 0
-      let coalitionVotesSum = 0
-      let listaNominalSum = 0
-      const sectionResults: any[] = []
-
-      // Procesar cada fila de datos
-      data.forEach((row) => {
-        // Sumar lista nominal
-        if (row.LISTA_NOMINAL) {
-          const listaNominal = Number(row.LISTA_NOMINAL) || 0
-          if (!isNaN(listaNominal)) {
-            listaNominalSum += listaNominal
-          }
-        }
-
-        // Calcular votos totales y de la coalición para esta sección
-        let sectionTotalVotes = 0
-        let sectionCoalitionVotes = 0
-
-        // Procesar cada partido/coalición en la fila
-        Object.entries(row).forEach(([key, value]) => {
-          // Excluir columnas que no son partidos/coaliciones
-          if (
-            key !== "SECCION" &&
-            key !== "CASILLA" &&
-            key !== "DISTRITO" &&
-            key !== "MUNICIPIO" &&
-            key !== "LOCALIDAD" &&
-            key !== "LISTA_NOMINAL" &&
-            key !== "TOTAL_VOTOS"
-          ) {
-            const votes = Number(value) || 0
-
-            // Sumar al total de votos de la sección
-            sectionTotalVotes += votes
-
-            // Verificar si este partido/coalición pertenece a la coalición seleccionada
-            if (selectedCoalitionObj.partidos.includes(key)) {
-              sectionCoalitionVotes += votes
-            }
-          }
-        })
-
-        // Si no se calcularon votos totales pero existe TOTAL_VOTOS, usarlo
-        if (sectionTotalVotes === 0 && row.TOTAL_VOTOS) {
-          sectionTotalVotes = Number(row.TOTAL_VOTOS) || 0
-        }
-
-        // Sumar a los totales generales
-        totalVotesSum += sectionTotalVotes
-        coalitionVotesSum += sectionCoalitionVotes
-
-        // Agregar datos de esta sección
-        sectionResults.push({
-          seccion: row.SECCION,
-          distrito: row.DISTRITO || "No especificado",
-          municipio: row.MUNICIPIO || "No especificado",
-          totalVotos: sectionTotalVotes,
-          coalitionVotos: sectionCoalitionVotes,
-          porcentajeCoalicion: sectionTotalVotes > 0 ? (sectionCoalitionVotes / sectionTotalVotes) * 100 : 0,
-          listaNominal: Number(row.LISTA_NOMINAL) || 0,
-        })
-      })
-
-      // Calcular votos meta y diferencia
-      // Si useCoalitionVotesForGoal es true, calcular la meta sobre los votos de la coalición
-      // Si es false, calcular sobre el total de votos
-      const baseForGoal = useCoalitionVotesForGoal ? coalitionVotesSum : totalVotesSum
-      const goalVotesValue = Math.ceil((baseForGoal * goalPercentage) / 100)
-      const differenceValue = coalitionVotesSum - goalVotesValue
-
-      // Calcular qué porcentaje del total representaría la meta
-      const goalPercentageOfTotalValue = totalVotesSum > 0 ? (goalVotesValue / totalVotesSum) * 100 : 0
-
-      return {
-        coalitionVotes: coalitionVotesSum,
-        totalVotes: totalVotesSum,
-        listaNominal: listaNominalSum,
-        sectionData: sectionResults,
-        goalVotes: goalVotesValue,
-        difference: differenceValue,
-        goalPercentageOfTotal: goalPercentageOfTotalValue,
+      if (d.municipio) {
+        municipiosSet.add(d.municipio)
       }
-    }, [data, selectedCoalitionObj, goalPercentage, useCoalitionVotesForGoal])
+    })
 
-  // Ordenar secciones por porcentaje de la coalición (de menor a mayor)
-  const sortedSections = useMemo(() => {
-    return [...sectionData].sort((a, b) => a.porcentajeCoalicion - b.porcentajeCoalicion)
-  }, [sectionData])
+    const distritos = Array.from(distritosSet).sort((a, b) => {
+      const numA = Number.parseInt(a) || 0
+      const numB = Number.parseInt(b) || 0
+      return numA - numB
+    })
 
-  // Secciones prioritarias (con menor porcentaje de la coalición)
-  const prioritySections = useMemo(() => {
-    return sortedSections.slice(0, 10)
-  }, [sortedSections])
+    const municipios = Array.from(municipiosSet).sort((a, b) => {
+      const numA = Number.parseInt(a) || 0
+      const numB = Number.parseInt(b) || 0
+      return numA - numB
+    })
 
-  // Extraer distritos únicos de los datos
-  const distritos = useMemo(() => {
-    if (!data || !Array.isArray(data) || data.length === 0) return ["todos"]
+    return { distritos, municipios }
+  }, [processedData])
 
-    try {
-      const distritosSet = new Set<string>()
-      distritosSet.add("todos")
+  // Aplicar filtros
+  const filteredData = useMemo(() => {
+    return processedData.filter((row) => {
+      const distritoFilter = filtroDistrito === "todos" || row.distrito === filtroDistrito
+      const municipioFilter = filtroMunicipio === "todos" || row.municipio === filtroMunicipio
+      const seccionFilter = !filtroSeccion || row.seccion.toLowerCase().includes(filtroSeccion.toLowerCase())
+      const statusFilter = filtroStatus === "todos" || row.status === filtroStatus
 
-      data.forEach((item) => {
-        if (item.DISTRITO) {
-          distritosSet.add(item.DISTRITO)
-        }
-      })
+      return distritoFilter && municipioFilter && seccionFilter && statusFilter
+    })
+  }, [processedData, filtroDistrito, filtroMunicipio, filtroSeccion, filtroStatus])
 
-      return Array.from(distritosSet)
-    } catch (err) {
-      console.error("Error al extraer distritos:", err)
-      setError("Error al procesar los distritos. Verifica el formato de los datos.")
-      return ["todos"]
+  // Estadísticas
+  const stats = useMemo(() => {
+    const total = filteredData.length
+    const alcanzadas = filteredData.filter((d) => d.status === "Alcanzada").length
+    const cerca = filteredData.filter((d) => d.status === "Cerca").length
+    const totalVotosEmitidos = filteredData.reduce((sum, d) => sum + (d.totalVotosEmitidos || 0), 0)
+    const totalVotosPartido = filteredData.reduce((sum, d) => sum + (d.votosPartidoCoalicion || 0), 0)
+    const totalVotosMeta = filteredData.reduce((sum, d) => sum + (d.votosQueRepresentaMeta || 0), 0)
+
+    const porcentajeExito = total > 0 ? (alcanzadas / total) * 100 : 0
+    const porcentajePromedioActual = totalVotosEmitidos > 0 ? (totalVotosPartido / totalVotosEmitidos) * 100 : 0
+    const votosAdicionales = Math.max(0, totalVotosMeta - totalVotosPartido)
+
+    return {
+      total: isNaN(total) ? 0 : total,
+      alcanzadas: isNaN(alcanzadas) ? 0 : alcanzadas,
+      cerca: isNaN(cerca) ? 0 : cerca,
+      porcentajeExito: isNaN(porcentajeExito) ? 0 : porcentajeExito,
+      totalVotosEmitidos: isNaN(totalVotosEmitidos) ? 0 : totalVotosEmitidos,
+      totalVotosPartido: isNaN(totalVotosPartido) ? 0 : totalVotosPartido,
+      totalVotosMeta: isNaN(totalVotosMeta) ? 0 : totalVotosMeta,
+      porcentajePromedioActual: isNaN(porcentajePromedioActual) ? 0 : porcentajePromedioActual,
+      votosAdicionales: isNaN(votosAdicionales) ? 0 : votosAdicionales,
     }
-  }, [data])
+  }, [filteredData])
 
-  // Extraer secciones únicas de los datos
-  const secciones = useMemo(() => {
-    if (!data || !Array.isArray(data) || data.length === 0) return ["general", "all-table"]
+  // Definir columnas de la tabla
+  const columns: ColumnDef<SectionData>[] = [
+    {
+      accessorKey: "seccion",
+      header: ({ column }) => <DataTableColumnHeader column={column} title="Sección" />,
+      cell: ({ row }) => <div className="font-medium">{row.getValue("seccion")}</div>,
+    },
+    {
+      accessorKey: "distrito",
+      header: ({ column }) => <DataTableColumnHeader column={column} title="Distrito" />,
+      cell: ({ row }) => <div className="text-center">{row.getValue("distrito")}</div>,
+    },
+    {
+      accessorKey: "municipioNombre",
+      header: ({ column }) => <DataTableColumnHeader column={column} title="Municipio" />,
+    },
+    {
+      accessorKey: "totalVotosEmitidos",
+      header: ({ column }) => <DataTableColumnHeader column={column} title="Total Votos Emitidos" />,
+      cell: ({ row }) => (
+        <div className="text-right font-mono">{row.getValue<number>("totalVotosEmitidos").toLocaleString()}</div>
+      ),
+    },
+    {
+      accessorKey: "votosPartidoCoalicion",
+      header: ({ column }) => (
+        <DataTableColumnHeader column={column} title="Votos Seleccionados" className="text-center" />
+      ),
+      cell: ({ row }) => (
+        <div className="text-right font-mono font-medium text-blue-600">
+          {row.getValue<number>("votosPartidoCoalicion").toLocaleString()}
+        </div>
+      ),
+    },
+    {
+      accessorKey: "porcentajeActual",
+      header: ({ column }) => <DataTableColumnHeader column={column} title="% Actual" />,
+      cell: ({ row }) => {
+        const value = row.getValue<number>("porcentajeActual")
+        const meta = row.original.porcentajeMeta
+        return (
+          <div className="text-right">
+            <span className={`font-medium ${value >= meta ? "text-green-600" : "text-orange-600"}`}>
+              {value.toFixed(2)}%
+            </span>
+          </div>
+        )
+      },
+    },
+    {
+      accessorKey: "porcentajeMeta",
+      header: ({ column }) => <DataTableColumnHeader column={column} title="% Meta" />,
+      cell: ({ row }) => (
+        <div className="text-right font-mono font-medium text-purple-600">
+          {row.getValue<number>("porcentajeMeta").toFixed(2)}%
+        </div>
+      ),
+    },
+    {
+      accessorKey: "votosQueRepresentaMeta",
+      header: ({ column }) => <DataTableColumnHeader column={column} title="Votos que Representa Meta" />,
+      cell: ({ row }) => {
+        const value = row.getValue<number>("votosQueRepresentaMeta")
+        const actual = row.original.votosPartidoCoalicion
+        return (
+          <div className="text-right font-mono">
+            <span className={`font-medium ${actual >= value ? "text-green-600" : "text-red-600"}`}>
+              {value.toLocaleString()}
+            </span>
+            {actual < value && (
+              <div className="text-xs text-muted-foreground">(+{(value - actual).toLocaleString()})</div>
+            )}
+          </div>
+        )
+      },
+    },
+    {
+      accessorKey: "status",
+      header: ({ column }) => <DataTableColumnHeader column={column} title="Estado" />,
+      cell: ({ row }) => {
+        const status = row.getValue<string>("status")
+        const variants = {
+          Alcanzada: "default",
+          Cerca: "secondary",
+          Lejana: "outline",
+        } as const
 
-    try {
-      const seccionesSet = new Set<string>()
-      seccionesSet.add("general")
-      seccionesSet.add("all-table")
+        return <Badge variant={variants[status as keyof typeof variants]}>{status}</Badge>
+      },
+    },
+  ]
 
-      // Filtrar por distrito si es necesario
-      const filteredData =
-        selectedDistrict === "todos" ? data : data.filter((item) => item.DISTRITO === selectedDistrict)
-
-      filteredData.forEach((item) => {
-        if (item.SECCION) {
-          seccionesSet.add(item.SECCION.toString())
-        }
-      })
-
-      return Array.from(seccionesSet)
-    } catch (err) {
-      console.error("Error al extraer secciones:", err)
-      setError("Error al procesar las secciones. Verifica el formato de los datos.")
-      return ["general", "all-table"]
-    }
-  }, [data, selectedDistrict])
-
-  // Calcular datos generales y por sección
-  // useEffect(() => {
-  //   if (!data || !Array.isArray(data) || data.length === 0 || !selectedCoalition) {
-  //     setError("No hay datos disponibles o no se ha seleccionado una coalición")
-  //     return
-  //   }
-
-  //   try {
-  //     setError(null)
-
-  //     // Filtrar por distrito si es necesario
-  //     const filteredData =
-  //       selectedDistrict === "todos" ? data : data.filter((item) => item.DISTRITO === selectedDistrict)
-
-  //     if (filteredData.length === 0) {
-  //       setError("No hay datos para el distrito seleccionado")
-  //       return
-  //     }
-
-  //     // Calcular datos generales
-  //     const totalVotos = filteredData.reduce((sum, item) => {
-  //       // Intentar obtener el total de votos de diferentes maneras
-  //       const itemTotal =
-  //         item.TOTAL_VOTOS ||
-  //         Object.entries(item)
-  //           .filter(
-  //             ([key]) =>
-  //               key !== "SECCION" &&
-  //               key !== "DISTRITO" &&
-  //               key !== "MUNICIPIO" &&
-  //               key !== "LISTA_NOMINAL" &&
-  //               key !== "CASILLA" &&
-  //               key !== "LOCALIDAD",
-  //           )
-  //           .reduce((total, [_, value]) => total + (Number(value) || 0), 0)
-
-  //       return sum + (itemTotal || 0)
-  //     }, 0)
-
-  //     // Encontrar la coalición seleccionada
-  //     const coalicionSeleccionada = coaliciones.find((c) => c.nombre === selectedCoalition)
-
-  //     if (!coalicionSeleccionada) {
-  //       setError(`No se encontró la coalición "${selectedCoalition}"`)
-  //       return
-  //     }
-
-  //     const votosCoalicion = filteredData.reduce((sum, item) => {
-  //       const partidosCoalicion = coalicionSeleccionada.partidos || []
-  //       const votosPartidos = partidosCoalicion.reduce((total, partido) => {
-  //         return total + (Number(item[partido]) || 0)
-  //       }, 0)
-  //       return sum + votosPartidos
-  //     }, 0)
-
-  //     const porcentajeActual = totalVotos > 0 ? (votosCoalicion / totalVotos) * 100 : 0
-  //     const metaPorcentaje = goalPercentage
-  //     const votosNecesariosParaMeta = Math.ceil((metaPorcentaje / 100) * totalVotos)
-  //     const diferencia = votosNecesariosParaMeta - votosCoalicion
-
-  //     setGeneralData({
-  //       totalVotos,
-  //       votosCoalicion,
-  //       porcentajeActual,
-  //       metaPorcentaje,
-  //       votosNecesarios: votosNecesariosParaMeta,
-  //       diferencia,
-  //     })
-
-  //     // Calcular datos por sección
-  //     const sectionDataArray = filteredData.map((item) => {
-  //       const seccion = item.SECCION?.toString() || ""
-  //       const nombre = item.NOMBRE || `Sección ${seccion}`
-  //       const distrito = item.DISTRITO || "No especificado"
-
-  //       // Intentar obtener el total de votos de diferentes maneras
-  //       const totalVotosSeccion =
-  //         item.TOTAL_VOTOS ||
-  //         Object.entries(item)
-  //           .filter(
-  //             ([key]) =>
-  //               key !== "SECCION" &&
-  //               key !== "DISTRITO" &&
-  //               key !== "MUNICIPIO" &&
-  //               key !== "LISTA_NOMINAL" &&
-  //               key !== "CASILLA" &&
-  //               key !== "LOCALIDAD",
-  //           )
-  //           .reduce((total, [_, value]) => total + (Number(value) || 0), 0)
-
-  //       const partidosCoalicion = coalicionSeleccionada.partidos || []
-  //       const votosCoalicionSeccion = partidosCoalicion.reduce((total, partido) => {
-  //         return total + (Number(item[partido]) || 0)
-  //       }, 0)
-
-  //       const porcentajeActualSeccion = totalVotosSeccion > 0 ? (votosCoalicionSeccion / totalVotosSeccion) * 100 : 0
-  //       const votosNecesariosParaMetaSeccion = Math.ceil((metaPorcentaje / 100) * totalVotosSeccion)
-  //       const diferenciaSeccion = votosNecesariosParaMetaSeccion - votosCoalicionSeccion
-
-  //       return {
-  //         seccion,
-  //         nombre,
-  //         distrito,
-  //         totalVotos: totalVotosSeccion,
-  //         votosCoalicion: votosCoalicionSeccion,
-  //         porcentajeActual: porcentajeActualSeccion,
-  //         metaPorcentaje,
-  //         votosNecesarios: votosNecesariosParaMetaSeccion,
-  //         diferencia: diferenciaSeccion,
-  //       }
-  //     })
-
-  //     setSectionData(sectionDataArray)
-  //   } catch (err) {
-  //     console.error("Error al calcular datos:", err)
-  //     setError("Error al procesar los datos. Verifica el formato del archivo CSV.")
-  //   }
-  // }, [data, selectedCoalition, coaliciones, goalPercentage, selectedDistrict])
-
-  // Exportar datos a CSV
+  // Exportar datos
   const exportToCSV = () => {
-    if (sectionData.length === 0) return
-
-    // Crear encabezados
     const headers = [
       "Sección",
       "Distrito",
       "Municipio",
-      "Total Votos",
-      `Votos ${selectedCoalitionObj?.nombre || "Coalición"}`,
-      "% Coalición",
-      "Lista Nominal",
-      "Meta",
-      "Diferencia",
+      "Total Votos Emitidos",
+      "Votos Seleccionados",
+      "% Actual",
+      "% Meta",
+      "Votos que Representa Meta",
+      "Votos Adicionales Necesarios",
+      "Estado",
+      "Partidos/Coaliciones Seleccionados",
     ]
 
-    // Crear filas de datos
-    const rows = sectionData.map((section) => {
-      const sectionGoal = Math.ceil((section.totalVotos * goalPercentage) / 100)
-      const sectionDiff = section.coalitionVotos - sectionGoal
+    const rows = filteredData.map((row) => [
+      row.seccion,
+      row.distrito,
+      row.municipioNombre,
+      row.totalVotosEmitidos,
+      row.votosPartidoCoalicion,
+      row.porcentajeActual.toFixed(2),
+      row.porcentajeMeta.toFixed(2),
+      row.votosQueRepresentaMeta,
+      Math.max(0, row.votosQueRepresentaMeta - row.votosPartidoCoalicion),
+      row.status,
+      selectedPartidos.join(" + "),
+    ])
 
-      return [
-        section.seccion,
-        section.distrito,
-        section.municipio,
-        section.totalVotos,
-        section.coalitionVotos,
-        section.porcentajeCoalicion.toFixed(2),
-        section.listaNominal,
-        sectionGoal,
-        sectionDiff,
-      ]
-    })
-
-    // Combinar encabezados y filas
     const csvContent = [headers, ...rows].map((row) => row.join(",")).join("\n")
 
-    // Crear y descargar el archivo
     const blob = new Blob([csvContent], { type: "text/csv;charset=utf-8;" })
     const url = URL.createObjectURL(blob)
     const link = document.createElement("a")
     link.setAttribute("href", url)
-    link.setAttribute("download", `metas_${selectedCoalitionObj?.nombre || "coalicion"}.csv`)
+    link.setAttribute("download", `metas_electorales_${selectedPartidos.join("_")}_${goalPercentage}pct.csv`)
     link.style.visibility = "hidden"
     document.body.appendChild(link)
     link.click()
     document.body.removeChild(link)
   }
 
-  // Exportar datos a CSV
-  // const exportToCSVOld = () => {
-  //   if (!data || !Array.isArray(data) || data.length === 0) {
-  //     setError("No hay datos para exportar")
-  //     return
-  //   }
-
-  //   try {
-  //     let csvContent = "data:text/csv;charset=utf-8,"
-
-  //     // Encabezados
-  //     csvContent += "Sección,Nombre,Distrito,Total Votos,Votos Coalición,% Actual,Meta %,Votos Necesarios,Diferencia\n"
-
-  //     // Datos
-  //     sectionData.forEach((item) => {
-  //       csvContent += `${item.seccion},${item.nombre},${item.distrito},${item.totalVotos},${item.votosCoalicion},${item.porcentajeActual.toFixed(2)},${item.metaPorcentaje},${item.votosNecesarios},${item.diferencia}\n`
-  //     })
-
-  //     // Crear enlace de descarga
-  //     const encodedUri = encodeURI(csvContent)
-  //     const link = document.createElement("a")
-  //     link.setAttribute("href", encodedUri)
-  //     link.setAttribute(
-  //       "download",
-  //       `metas_electorales_${selectedCoalition?.replace(/\s+/g, "_")}_${selectedDistrict !== "todos" ? selectedDistrict + "_" : ""}${new Date().toISOString().split("T")[0]}.csv`,
-  //     )
-  //     document.body.appendChild(link)
-  //     link.click()
-  //     document.body.removeChild(link)
-  //   } catch (err) {
-  //     console.error("Error al exportar datos:", err)
-  //     setError("Error al exportar los datos a CSV")
-  //   }
-  // }
-
-  // Definición de columnas para la tabla de secciones
-  const columns: ColumnDef<SectionData>[] = [
-    {
-      accessorKey: "seccion",
-      header: ({ column }) => <DataTableColumnHeader column={column} title="Sección" />,
-    },
-    {
-      accessorKey: "nombre",
-      header: ({ column }) => <DataTableColumnHeader column={column} title="Nombre" />,
-    },
-    {
-      accessorKey: "distrito",
-      header: ({ column }) => <DataTableColumnHeader column={column} title="Distrito" />,
-    },
-    {
-      accessorKey: "totalVotos",
-      header: ({ column }) => <DataTableColumnHeader column={column} title="Total Votos" />,
-      cell: ({ row }) => <div className="text-right">{row.getValue("totalVotos")}</div>,
-    },
-    {
-      accessorKey: "votosCoalicion",
-      header: ({ column }) => <DataTableColumnHeader column={column} title="Votos Coalición" />,
-      cell: ({ row }) => <div className="text-right">{row.getValue("votosCoalicion")}</div>,
-    },
-    {
-      accessorKey: "porcentajeActual",
-      header: ({ column }) => <DataTableColumnHeader column={column} title="% Actual" />,
-      cell: ({ row }) => {
-        const value = row.getValue("porcentajeActual") as number
-        return <div className="text-right">{value.toFixed(2)}%</div>
-      },
-    },
-    {
-      accessorKey: "metaPorcentaje",
-      header: ({ column }) => <DataTableColumnHeader column={column} title="Meta %" />,
-      cell: ({ row }) => <div className="text-right">{row.getValue("metaPorcentaje")}%</div>,
-    },
-    {
-      accessorKey: "votosNecesarios",
-      header: ({ column }) => <DataTableColumnHeader column={column} title="Votos Necesarios" />,
-      cell: ({ row }) => <div className="text-right">{row.getValue("votosNecesarios")}</div>,
-    },
-    {
-      accessorKey: "diferencia",
-      header: ({ column }) => <DataTableColumnHeader column={column} title="Diferencia" />,
-      cell: ({ row }) => {
-        const value = row.getValue("diferencia") as number
-        return (
-          <div className={`text-right font-medium ${value > 0 ? "text-red-500" : "text-green-500"}`}>
-            {value > 0 ? `+${value}` : value}
-            {value > 0 ? (
-              <ChevronUp className="inline ml-1 h-4 w-4" />
-            ) : (
-              <ChevronDown className="inline ml-1 h-4 w-4" />
-            )}
-          </div>
-        )
-      },
-    },
-  ]
-
-  // Filtrar datos para la sección seleccionada
-  const selectedSectionData = useMemo(() => {
-    if (selectedSection === "general" || selectedSection === "all-table") {
-      return null
-    }
-    return sectionDataOld.find((item) => item.seccion === selectedSection) || null
-  }, [sectionDataOld, selectedSection])
-
-  if (!data || !Array.isArray(data) || data.length === 0) {
-    return (
-      <div className="flex flex-col items-center justify-center p-8 text-center">
-        <AlertCircle className="h-16 w-16 text-muted-foreground mb-4" />
-        <h3 className="text-lg font-medium">No hay datos disponibles para analizar</h3>
-        <p className="text-sm text-muted-foreground mt-2">
-          Por favor, carga datos electorales para comenzar el análisis.
-        </p>
-      </div>
-    )
+  // Limpiar filtros
+  const limpiarFiltros = () => {
+    setFiltroDistrito("todos")
+    setFiltroMunicipio("todos")
+    setFiltroSeccion("")
+    setFiltroStatus("todos")
   }
 
-  if (!selectedCoalition) {
+  if (!data || data.length === 0) {
     return (
-      <div className="flex flex-col items-center justify-center p-8 text-center">
-        <AlertCircle className="h-16 w-16 text-muted-foreground mb-4" />
-        <h3 className="text-lg font-medium">No se ha seleccionado una coalición</h3>
-        <p className="text-sm text-muted-foreground mt-2">
-          Por favor, selecciona una coalición en la pestaña "Coaliciones" para comenzar el análisis.
-        </p>
-      </div>
+      <Card className="p-8 text-center">
+        <BarChart3 className="h-16 w-16 text-muted-foreground mx-auto mb-4" />
+        <h3 className="text-lg font-medium mb-2">No hay datos disponibles</h3>
+        <p className="text-muted-foreground">Carga datos electorales para comenzar el análisis de metas.</p>
+      </Card>
     )
   }
 
   return (
     <div className="space-y-6">
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
+      {/* Configuración Principal */}
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
         <Card>
-          <CardHeader className="pb-2">
-            <CardTitle className="text-lg">Meta de Porcentaje</CardTitle>
+          <CardHeader className="pb-4">
+            <CardTitle className="flex items-center gap-2">
+              <Target className="h-5 w-5" />
+              Configuración de Meta
+            </CardTitle>
           </CardHeader>
-          <CardContent>
-            <div className="flex flex-col space-y-4">
-              <div className="flex items-center justify-between">
-                <span className="text-sm text-muted-foreground">Porcentaje de meta:</span>
-                <span className="font-medium text-lg">{goalPercentage}%</span>
+          <CardContent className="space-y-4">
+            {/* Selección múltiple de partidos/coaliciones */}
+            <div className="space-y-3">
+              <Label>Partidos/Coaliciones Seleccionados</Label>
+
+              {/* Partidos seleccionados */}
+              <div className="flex flex-wrap gap-2 min-h-[40px] p-2 border rounded-md">
+                {selectedPartidos.length === 0 ? (
+                  <span className="text-muted-foreground text-sm">Selecciona partidos o coaliciones...</span>
+                ) : (
+                  selectedPartidos.map((partido) => (
+                    <Badge key={partido} variant="secondary" className="flex items-center gap-1">
+                      {partido}
+                      <X className="h-3 w-3 cursor-pointer hover:text-red-500" onClick={() => removePartido(partido)} />
+                    </Badge>
+                  ))
+                )}
+              </div>
+
+              {/* Botón para mostrar selector */}
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => setShowPartidoSelector(!showPartidoSelector)}
+                className="w-full"
+              >
+                <Plus className="h-4 w-4 mr-2" />
+                {showPartidoSelector ? "Ocultar Selector" : "Agregar Partidos/Coaliciones"}
+              </Button>
+
+              {/* Selector de partidos */}
+              {showPartidoSelector && (
+                <div className="space-y-3 p-3 border rounded-md bg-muted/20">
+                  {/* Coaliciones predefinidas */}
+                  {coaliciones.length > 0 && (
+                    <div className="space-y-2">
+                      <Label className="text-xs font-medium">Coaliciones Predefinidas:</Label>
+                      <div className="grid grid-cols-1 gap-2">
+                        {coaliciones.map((coalicion) => (
+                          <Button
+                            key={coalicion.nombre}
+                            variant="outline"
+                            size="sm"
+                            onClick={() => addCoalicion(coalicion)}
+                            className="justify-start text-xs"
+                          >
+                            <Plus className="h-3 w-3 mr-2" />
+                            {coalicion.nombre} ({coalicion.partidos.join(", ")})
+                          </Button>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Partidos individuales */}
+                  <div className="space-y-2">
+                    <Label className="text-xs font-medium">Partidos Individuales:</Label>
+                    <div className="grid grid-cols-2 gap-2">
+                      {PARTIDOS_DISPONIBLES.map((partido) => (
+                        <div key={partido} className="flex items-center space-x-2">
+                          <Checkbox
+                            id={partido}
+                            checked={selectedPartidos.includes(partido)}
+                            onCheckedChange={() => togglePartido(partido)}
+                          />
+                          <Label htmlFor={partido} className="text-xs cursor-pointer">
+                            {partido}
+                          </Label>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                </div>
+              )}
+            </div>
+
+            <div className="space-y-3">
+              <div className="flex justify-between">
+                <Label>Porcentaje Meta</Label>
+                <span className="text-lg font-bold text-primary">{goalPercentage}%</span>
               </div>
               <Slider
                 value={[goalPercentage]}
                 onValueChange={(value) => setGoalPercentage(value[0])}
                 min={1}
                 max={100}
-                step={1}
+                step={0.1}
                 className="py-4"
               />
               <div className="text-xs text-muted-foreground">
-                {useCoalitionVotesForGoal ? (
-                  <p>
-                    Meta: Incrementar los votos de la coalición en un {goalPercentage}% sobre los votos actuales de la
-                    coalición.
-                  </p>
-                ) : (
-                  <p>Meta: Obtener el {goalPercentage}% del total de votos para la coalición.</p>
-                )}
+                <strong>Análisis:</strong> Suma de votos de {selectedPartidos.length} partido(s)/coalición(es)
+                seleccionado(s) para alcanzar {goalPercentage}% del total de votos emitidos.
               </div>
             </div>
           </CardContent>
         </Card>
 
         <Card>
-          <CardHeader className="pb-2">
-            <CardTitle className="text-lg">Coalición Seleccionada</CardTitle>
+          <CardHeader className="pb-4">
+            <CardTitle className="flex items-center gap-2">
+              <Filter className="h-5 w-5" />
+              Filtros
+            </CardTitle>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            <div className="grid grid-cols-2 gap-3">
+              <div className="space-y-2">
+                <Label className="text-xs">Distrito</Label>
+                <Select
+                  value={filtroDistrito}
+                  onValueChange={setFiltroDistrito}
+                  disabled={opcionesFiltros.distritos.length === 0}
+                >
+                  <SelectTrigger className="h-8">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="todos">Todos los distritos</SelectItem>
+                    {opcionesFiltros.distritos.map((distrito) => (
+                      <SelectItem key={distrito} value={distrito}>
+                        Distrito {distrito}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+
+              <div className="space-y-2">
+                <Label className="text-xs">Municipio</Label>
+                <Select
+                  value={filtroMunicipio}
+                  onValueChange={setFiltroMunicipio}
+                  disabled={opcionesFiltros.municipios.length === 0}
+                >
+                  <SelectTrigger className="h-8">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="todos">Todos los municipios</SelectItem>
+                    {opcionesFiltros.municipios.map((municipio) => (
+                      <SelectItem key={municipio} value={municipio}>
+                        {MUNICIPIOS_MAP[municipio] || municipio}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+            </div>
+
+            <div className="grid grid-cols-2 gap-3">
+              <div className="space-y-2">
+                <Label className="text-xs">Sección</Label>
+                <Input
+                  placeholder="Buscar sección..."
+                  value={filtroSeccion}
+                  onChange={(e) => setFiltroSeccion(e.target.value)}
+                  className="h-8"
+                />
+              </div>
+
+              <div className="space-y-2">
+                <Label className="text-xs">Estado</Label>
+                <Select value={filtroStatus} onValueChange={setFiltroStatus}>
+                  <SelectTrigger className="h-8">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="todos">Todos los estados</SelectItem>
+                    <SelectItem value="Alcanzada">Alcanzada</SelectItem>
+                    <SelectItem value="Cerca">Cerca</SelectItem>
+                    <SelectItem value="Lejana">Lejana</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+            </div>
+
+            <Button variant="outline" size="sm" onClick={limpiarFiltros} className="w-full">
+              Limpiar Filtros
+            </Button>
+          </CardContent>
+        </Card>
+      </div>
+
+      {/* Estadísticas */}
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+        <SimpleStatCard
+          title="Secciones"
+          value={stats.total.toLocaleString()}
+          description="Total analizadas"
+          icon={<MapPin className="h-4 w-4" />}
+        />
+
+        <SimpleStatCard
+          title="Metas Alcanzadas"
+          value={stats.alcanzadas.toLocaleString()}
+          description={`${stats.porcentajeExito.toFixed(1)}% de éxito`}
+          icon={<CheckCircle2 className="h-4 w-4" />}
+          trend={{
+            value: stats.porcentajeExito,
+            isPositive: stats.porcentajeExito >= 50,
+            suffix: "%",
+          }}
+        />
+
+        <SimpleStatCard
+          title="% Promedio Actual"
+          value={`${stats.porcentajePromedioActual.toFixed(2)}%`}
+          description={`Meta: ${goalPercentage}%`}
+          icon={<BarChart3 className="h-4 w-4" />}
+          trend={{
+            value: stats.porcentajePromedioActual - goalPercentage,
+            isPositive: stats.porcentajePromedioActual >= goalPercentage,
+            suffix: "pp",
+          }}
+        />
+
+        <SimpleStatCard
+          title="Votos Adicionales"
+          value={stats.votosAdicionales.toLocaleString()}
+          description="Necesarios para metas"
+          icon={<TrendingUp className="h-4 w-4" />}
+        />
+      </div>
+
+      <Separator />
+
+      {/* Tabla de Datos */}
+      <Card>
+        <CardHeader className="pb-4">
+          <div className="flex justify-between items-center">
+            <CardTitle className="flex items-center gap-2">
+              <Users className="h-5 w-5" />
+              Análisis de Metas por Sección
+              <Badge variant="secondary" className="ml-2">
+                {filteredData.length} secciones
+              </Badge>
+              {selectedPartidos.length > 0 && (
+                <Badge variant="outline" className="ml-2">
+                  {selectedPartidos.join(" + ")}
+                </Badge>
+              )}
+            </CardTitle>
+            <Button variant="outline" size="sm" onClick={exportToCSV}>
+              <Download className="h-4 w-4 mr-2" />
+              Exportar CSV
+            </Button>
+          </div>
+        </CardHeader>
+        <CardContent>
+          <DataTable
+            columns={columns}
+            data={filteredData}
+            searchColumn="seccion"
+            searchPlaceholder="Buscar por sección..."
+            pagination={true}
+          />
+        </CardContent>
+      </Card>
+
+      {/* Resumen de Prioridades */}
+      {stats.cerca > 0 && (
+        <Card>
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2">
+              <AlertTriangle className="h-5 w-5 text-amber-500" />
+              Secciones Prioritarias
+            </CardTitle>
           </CardHeader>
           <CardContent>
-            <div className="flex flex-col space-y-4">
-              <div className="flex items-center justify-between">
-                <span className="text-sm text-muted-foreground">Coalición:</span>
-                <span className="font-medium">{selectedCoalitionObj?.nombre || "No seleccionada"}</span>
-              </div>
-              <div className="flex flex-wrap gap-2">
-                {selectedCoalitionObj?.partidos.map((partido) => (
-                  <Badge key={partido} variant="outline">
-                    {partido}
-                  </Badge>
+            <p className="text-sm text-muted-foreground mb-4">
+              Secciones que están cerca de alcanzar la meta porcentual para la combinación seleccionada:
+            </p>
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
+              {filteredData
+                .filter((d) => d.status === "Cerca")
+                .slice(0, 6)
+                .map((seccion, i) => (
+                  <div key={i} className="p-3 border rounded-lg bg-amber-50 dark:bg-amber-950/20">
+                    <div className="flex justify-between items-start">
+                      <div>
+                        <div className="font-medium">Sección {seccion.seccion}</div>
+                        <div className="text-xs text-muted-foreground">
+                          Distrito {seccion.distrito} - {seccion.municipioNombre}
+                        </div>
+                        <div className="text-xs text-blue-600 mt-1">
+                          {seccion.porcentajeActual.toFixed(2)}% → {seccion.porcentajeMeta}%
+                        </div>
+                      </div>
+                      <Badge variant="secondary" className="text-xs">
+                        +{(seccion.votosQueRepresentaMeta - seccion.votosPartidoCoalicion).toLocaleString()} votos
+                      </Badge>
+                    </div>
+                  </div>
                 ))}
-              </div>
-              <div className="text-xs text-muted-foreground">
-                <p>Porcentaje actual: {((coalitionVotes / totalVotes) * 100).toFixed(2)}% del total de votos</p>
-              </div>
             </div>
           </CardContent>
         </Card>
-      </div>
-
-      <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-        <StatCard
-          title="Total de Votos"
-          value={totalVotes}
-          description="En todas las secciones"
-          icon={<Award className="h-4 w-4 text-blue-500" />}
-          trend={null}
-        />
-        <StatCard
-          title="Votos Coalición"
-          value={coalitionVotes}
-          description={`${((coalitionVotes / totalVotes) * 100).toFixed(2)}% del total`}
-          icon={<Target className="h-4 w-4 text-purple-500" />}
-          trend={null}
-        />
-        <StatCard
-          title="Meta"
-          value={goalVotes}
-          description={
-            useCoalitionVotesForGoal
-              ? `${goalPercentage}% de los votos de la coalición`
-              : `${goalPercentageOfTotal.toFixed(2)}% del total de votos`
-          }
-          icon={<TrendingUp className="h-4 w-4 text-green-500" />}
-          trend={null}
-        />
-        <StatCard
-          title="Diferencia"
-          value={Math.abs(difference)}
-          description={`Votos ${difference >= 0 ? "por encima" : "por debajo"} de la meta`}
-          icon={
-            difference >= 0 ? (
-              <TrendingUp className="h-4 w-4 text-green-500" />
-            ) : (
-              <TrendingDown className="h-4 w-4 text-red-500" />
-            )
-          }
-          trend={difference >= 0 ? "up" : "down"}
-        />
-      </div>
-
-      <div className="flex justify-between items-center">
-        <div className="space-y-1">
-          <h3 className="text-lg font-medium">Análisis por Sección</h3>
-          <p className="text-sm text-muted-foreground">Secciones ordenadas por prioridad para alcanzar la meta</p>
-        </div>
-        <div className="flex items-center gap-2">
-          <div className="flex items-center space-x-2">
-            <Label htmlFor="view-selector" className="text-sm">
-              Vista:
-            </Label>
-            <Select value={selectedView} onValueChange={setSelectedView}>
-              <SelectTrigger id="view-selector" className="w-[140px]">
-                <SelectValue placeholder="Seleccionar vista" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="general">General</SelectItem>
-                <SelectItem value="priority">Secciones Prioritarias</SelectItem>
-              </SelectContent>
-            </Select>
-          </div>
-          <Button variant="outline" size="sm" onClick={exportToCSV}>
-            <Download className="h-4 w-4 mr-2" />
-            Exportar a CSV
-          </Button>
-        </div>
-      </div>
-
-      {sectionData.length === 0 ? (
-        <Card className="p-6 text-center">
-          <AlertTriangle className="h-8 w-8 text-amber-500 mx-auto mb-4" />
-          <h3 className="text-lg font-medium mb-2">No hay datos disponibles</h3>
-          <p className="text-sm text-muted-foreground">
-            No se encontraron datos para los filtros seleccionados. Intenta con otros filtros.
-          </p>
-        </Card>
-      ) : (
-        <CardSpotlight>
-          <CardContent className="p-0">
-            <ScrollArea className="h-[400px] rounded-md border">
-              <div className="p-4">
-                <table className="w-full">
-                  <thead className="sticky top-0 bg-background z-10">
-                    <tr className="border-b">
-                      <th className="text-left p-2 text-xs font-medium text-muted-foreground">Sección</th>
-                      <th className="text-left p-2 text-xs font-medium text-muted-foreground">Distrito</th>
-                      <th className="text-left p-2 text-xs font-medium text-muted-foreground">Municipio</th>
-                      <th className="text-right p-2 text-xs font-medium text-muted-foreground">Total Votos</th>
-                      <th className="text-right p-2 text-xs font-medium text-muted-foreground">Votos Coalición</th>
-                      <th className="text-right p-2 text-xs font-medium text-muted-foreground">% Coalición</th>
-                      <th className="text-right p-2 text-xs font-medium text-muted-foreground">Meta</th>
-                      <th className="text-right p-2 text-xs font-medium text-muted-foreground">Diferencia</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {(selectedView === "priority" ? prioritySections : sortedSections).map((section, index) => {
-                      // Calcular meta y diferencia para esta sección
-                      const sectionGoalBase = useCoalitionVotesForGoal ? section.coalitionVotos : section.totalVotos
-                      const sectionGoal = Math.ceil((sectionGoalBase * goalPercentage) / 100)
-                      const sectionDiff = section.coalitionVotos - sectionGoal
-
-                      return (
-                        <tr
-                          key={`${section.seccion}-${index}`}
-                          className="border-b hover:bg-muted/30 transition-colors"
-                        >
-                          <td className="p-2 text-sm">{section.seccion}</td>
-                          <td className="p-2 text-sm">{section.distrito}</td>
-                          <td className="p-2 text-sm">{section.municipio}</td>
-                          <td className="p-2 text-sm text-right">
-                            <AnimatedCounter value={section.totalVotos} />
-                          </td>
-                          <td className="p-2 text-sm text-right">
-                            <AnimatedCounter value={section.coalitionVotos} />
-                          </td>
-                          <td className="p-2 text-sm text-right">{section.porcentajeCoalicion.toFixed(2)}%</td>
-                          <td className="p-2 text-sm text-right">
-                            <AnimatedCounter value={sectionGoal} />
-                          </td>
-                          <td
-                            className={`p-2 text-sm text-right ${sectionDiff >= 0 ? "text-green-600" : "text-red-600"}`}
-                          >
-                            {sectionDiff >= 0 ? "+" : ""}
-                            <AnimatedCounter value={sectionDiff} />
-                          </td>
-                        </tr>
-                      )
-                    })}
-                  </tbody>
-                </table>
-              </div>
-            </ScrollArea>
-          </CardContent>
-        </CardSpotlight>
       )}
     </div>
   )

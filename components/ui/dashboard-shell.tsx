@@ -1,9 +1,12 @@
 import type React from "react"
+import { cn } from "@/lib/utils"
 
-interface DashboardShellProps {
-  children: React.ReactNode
-}
+interface DashboardShellProps extends React.HTMLAttributes<HTMLDivElement> {}
 
-export function DashboardShell({ children }: DashboardShellProps) {
-  return <div className="flex flex-col gap-8 md:gap-10">{children}</div>
+export function DashboardShell({ children, className, ...props }: DashboardShellProps) {
+  return (
+    <div className={cn("flex-1 space-y-4 p-4 md:p-8 pt-6", className)} {...props}>
+      {children}
+    </div>
+  )
 }
