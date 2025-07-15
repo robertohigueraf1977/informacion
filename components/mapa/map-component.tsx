@@ -237,22 +237,37 @@ function MapUpdater({
                 fillOpacity: 0.7,
               })
 
-              // Si la feature tiene un ID de sección, llamar a onSeccionSelect con el color
-              if (feature.properties && feature.properties.ID) {
-                console.log("Llamando a onSeccionSelect con ID:", feature.properties.ID)
-                onSeccionSelect(feature.properties.ID, feature.properties, color)
-              } /* else if (feature.properties && feature.properties.SECCION) {
-                // Intentar usar el nombre de la sección como ID si no hay SECCION_ID
-                console.log("No hay SECCION_ID, intentando usar SECCION:", feature.properties.SECCION)
-                const seccionId = Number.parseInt(feature.properties.SECCION, 10)
-                if (!isNaN(seccionId)) {
-                  console.log("Usando SECCION como ID:", seccionId)
-                  onSeccionSelect(seccionId, feature.properties, color)
-                } else {
-                  console.error("No se pudo determinar el ID de la sección")
-                }
-              } */ else {
-                console.error("La feature no tiene propiedades de sección")
+              // LÍNEA 362 - PROBLEMA IDENTIFICADO: Usar SECCION_ID directamente
+              // Esta línea puede estar usando información incorrecta si SECCION_ID no está presente o es incorrecto
+              console.log("LÍNEA 362 - Información potencialmente incorrecta:", {
+                SECCION_ID: feature.properties.SECCION_ID,
+                SECCION: feature.properties.SECCION,
+                allProperties: feature.properties,
+              })
+
+              // Validar que tenemos un ID válido antes de proceder
+              let seccionId: number | null = null
+
+              // Priorizar SECCION_ID si existe y es válido
+              if (feature.properties.SECCION_ID && !isNaN(Number(feature.properties.SECCION_ID))) {
+                seccionId = Number(feature.properties.SECCION_ID)
+                console.log("Usando SECCION_ID:", seccionId)
+              }
+              // Si no, intentar usar SECCION como fallback
+              else if (feature.properties.SECCION && !isNaN(Number(feature.properties.SECCION))) {
+                seccionId = Number(feature.properties.SECCION)
+                console.log("Usando SECCION como fallback:", seccionId)
+              }
+
+              if (seccionId !== null) {
+                console.log("LÍNEA 386 - Información correcta - Llamando onSeccionSelect con ID:", seccionId)
+                onSeccionSelect(seccionId, feature.properties, color)
+              } else {
+                console.error("No se pudo determinar un ID de sección válido:", {
+                  SECCION_ID: feature.properties.SECCION_ID,
+                  SECCION: feature.properties.SECCION,
+                  properties: feature.properties,
+                })
               }
             },
           })
@@ -598,27 +613,31 @@ export default function MapComponent({ geoJsonData, colorBy }: MapComponentProps
                     <div className="p-3 bg-gray-50 rounded-md border border-gray-100">
                       <h3 className="text-xs font-semibold text-gray-500 mb-1">Distrito Local</h3>
                       <div className="text-sm font-medium">
-                        {seccionInfo?.distritoLocal?.nombre ||
+                        {selectedSeccionProps?.DISTRITO_LOCAL_NOMBRE ||
+                          seccionInfo?.distritoLocal?.nombre ||
                           "No asignado"}
                       </div>
                     </div>
                     <div className="p-3 bg-gray-50 rounded-md border border-gray-100">
                       <h3 className="text-xs font-semibold text-gray-500 mb-1">Distrito Federal</h3>
                       <div className="text-sm font-medium">
-                        {seccionInfo?.distritoFederal?.nombre ||
+                        {selectedSeccionProps?.DISTRITO_FEDERAL_NOMBRE ||
+                          seccionInfo?.distritoFederal?.nombre ||
                           "No asignado"}
                       </div>
                     </div>
                     <div className="p-3 bg-gray-50 rounded-md border border-gray-100">
                       <h3 className="text-xs font-semibold text-gray-500 mb-1">Municipio</h3>
                       <div className="text-sm font-medium">
-                        {seccionInfo?.municipio?.nombre || "No asignado"}
+                        {selectedSeccionProps?.MUNICIPIO_NOMBRE || seccionInfo?.municipio?.nombre || "No asignado"}
                       </div>
                     </div>
                     <div className="p-3 bg-gray-50 rounded-md border border-gray-100">
                       <h3 className="text-xs font-semibold text-gray-500 mb-1">Personas Registradas</h3>
                       <div className="text-sm font-medium">
-                        {seccionInfo?._count?.personas !== undefined
+                        {selectedSeccionProps?.PERSONAS_REGISTRADAS !== undefined
+                          ? selectedSeccionProps.PERSONAS_REGISTRADAS
+                          : seccionInfo?._count?.personas !== undefined
                             ? seccionInfo._count.personas
                             : "0"}
                       </div>
@@ -659,7 +678,7 @@ export default function MapComponent({ geoJsonData, colorBy }: MapComponentProps
                       {loading ? "Cargando..." : "Ver Personas"}
                       <ChevronRight className="ml-2 h-4 w-4" />
                     </Button>
-                    <Button variant="outline" className="w-full" asChild>
+                    <Button variant="outline" className="w-full bg-transparent" asChild>
                       <Link href={`/personas/crear?seccionId=${selectedSeccionId}`}>
                         <UserPlus className="mr-2 h-4 w-4" />
                         Registrar Nueva Persona
@@ -671,7 +690,7 @@ export default function MapComponent({ geoJsonData, colorBy }: MapComponentProps
                 <div className="space-y-4">
                   <Button
                     variant="outline"
-                    className="mb-4"
+                    className="mb-4 bg-transparent"
                     onClick={() => setShowPersonas(false)}
                     style={{
                       borderColor: selectedSectionColor,
