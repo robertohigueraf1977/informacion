@@ -24,16 +24,16 @@ const MapWithNoSSR = dynamic(() => import("./map-component"), {
   ),
 })
 
-// Modificar la función para mostrar mensajes de error más detallados
 export function DistritoMap() {
   const [geoJsonData, setGeoJsonData] = useState<any | null>(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
+  const [colorBy, setColorBy] = useState<string>("DISTRITO_L") // Por defecto, colorear por distrito local
+  const fileInputRef = useRef<HTMLInputElement>(null)
+
   useEffect(() => {
     console.log("DistritoMap montado correctamente")
   }, [])
-  const [colorBy, setColorBy] = useState<string>("DISTRITO_L") // Por defecto, colorear por distrito local
-  const fileInputRef = useRef<HTMLInputElement>(null)
 
   useEffect(() => {
     const fetchGeoJsonData = async () => {

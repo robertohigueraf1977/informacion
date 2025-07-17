@@ -1,28 +1,15 @@
-import { getServerSession } from "next-auth"
-import { authOptions } from "@/auth"
-import { redirect } from "next/navigation"
 import { DistritoMap } from "@/components/mapa/distrito-map"
 
-export default async function MapaPage() {
-  const session = await getServerSession(authOptions)
-
-  if (!session?.user) {
-    redirect("/auth/login")
-  }
-
+export default function MapaPage() {
   return (
-    <div className="space-y-6">
-      <div>
-        <h1 className="text-3xl font-bold">Mapa Electoral</h1>
-        <p className="text-muted-foreground">Visualización geográfica de distritos y secciones electorales</p>
-        <p className="text-sm text-muted-foreground mt-2">
-          Asegúrate de colocar el archivo 'Secciones.geojson' en la carpeta 'data' en la raíz del proyecto. Si el mapa
-          no carga automáticamente, puedes usar el botón "Cargar GeoJSON" para subir el archivo manualmente.
+    <div className="container mx-auto py-6">
+      <div className="mb-6">
+        <h1 className="text-3xl font-bold tracking-tight">Mapa Electoral</h1>
+        <p className="text-muted-foreground">
+          Visualización geográfica de secciones electorales con información demográfica y política.
         </p>
       </div>
-
       <DistritoMap />
     </div>
   )
 }
-

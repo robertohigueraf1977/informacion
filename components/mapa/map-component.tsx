@@ -15,14 +15,19 @@ import Link from "next/link"
 
 // Interfaz para las propiedades extendidas del GeoJSON
 interface ExtendedFeatureProperties {
-  SECCION: string
-  SECCION_ID: number
-  DISTRITO_L: string
-  DISTRITO_F: string
-  MUNICIPIO: string
+  ID: string | number
+  SECCION: string | number
+  DISTRITO_L: number
+  DISTRITO_F: number
+  MUNICIPIO: number
+  BD_ID: number | null
+  BD_NOMBRE: string | null
   MUNICIPIO_NOMBRE: string
   DISTRITO_LOCAL_NOMBRE: string
   DISTRITO_FEDERAL_NOMBRE: string
+  DISTRITO_L_NOMBRE: string
+  DISTRITO_F_NOMBRE: string
+  MUNICIPIO_NOMBRE_COLORACION: string
   PERSONAS_REGISTRADAS: number
   [key: string]: any
 }
@@ -96,6 +101,29 @@ const getColorForDistrict = (index: number): string => {
   return colors[index % colors.length]
 }
 
+// Función para extraer ID de sección de forma consistente
+const extraerIdSeccion = (properties: ExtendedFeatureProperties): number | null => {
+  console.log("🔍 Extrayendo ID de sección de properties:", properties)
+
+  // Prioridad 1: BD_ID (más confiable si existe)
+  if (properties.BD_ID !== null && properties.BD_ID !== undefined && !isNaN(Number(properties.BD_ID))) {
+    const bdId = Number(properties.BD_ID)
+    console.log("✅ Usando BD_ID:", bdId)
+    return bdId
+  }
+
+  // Prioridad 2: Usar SECCION del GeoJSON para buscar en la BD
+  // Esto requiere una búsqueda adicional, pero por ahora usamos el ID del GeoJSON como fallback
+  if (properties.ID !== null && properties.ID !== undefined && !isNaN(Number(properties.ID))) {
+    const geoId = Number(properties.ID)
+    console.log("⚠️ Usando GeoJSON ID como fallback:", geoId)
+    return geoId
+  }
+
+  console.error("❌ No se pudo extraer un ID válido de las properties:", properties)
+  return null
+}
+
 // Componente para actualizar el mapa
 function MapUpdater({
   data,
@@ -112,8 +140,6 @@ function MapUpdater({
   const geoJsonLayerRef = useRef<L.GeoJSON | null>(null)
   const initializedRef = useRef(false)
   const colorMapRef = useRef<{ [key: string]: string }>({})
-
-  // Añadir una nueva referencia para la capa seleccionada actualmente
   const selectedLayerRef = useRef<L.Layer | null>(null)
 
   // Este efecto se ejecuta solo una vez al montar el componente
@@ -150,16 +176,35 @@ function MapUpdater({
 
     try {
       console.log("Procesando datos GeoJSON")
-      // Agrupar features por el campo seleccionado
+
+      // Agrupar features por el campo seleccionado usando los nombres correctos
       const groupedFeatures: { [key: string]: any[] } = {}
-      data.features.forEach((feature: any) => {
-        if (!feature.properties) return
-        const key = feature.properties[colorBy] || "Desconocido"
+      data.features.forEach((feature: any, index: number) => {
+        if (!feature.properties) {
+          console.warn(`Feature ${index} no tiene properties`)
+          return
+        }
+
+        // Obtener el valor para coloración usando los nombres enriquecidos
+        let key = "Desconocido"
+
+        if (colorBy === "DISTRITO_L") {
+          key = feature.properties.DISTRITO_L_NOMBRE || feature.properties.DISTRITO_LOCAL_NOMBRE || "No asignado"
+        } else if (colorBy === "DISTRITO_F") {
+          key = feature.properties.DISTRITO_F_NOMBRE || feature.properties.DISTRITO_FEDERAL_NOMBRE || "No asignado"
+        } else if (colorBy === "MUNICIPIO") {
+          key = feature.properties.MUNICIPIO_NOMBRE_COLORACION || feature.properties.MUNICIPIO_NOMBRE || "No asignado"
+        } else {
+          key = feature.properties[colorBy] || "Desconocido"
+        }
+
         if (!groupedFeatures[key]) {
           groupedFeatures[key] = []
         }
         groupedFeatures[key].push(feature)
       })
+
+      console.log("Grupos creados para coloración:", Object.keys(groupedFeatures))
 
       // Crear un mapa de colores para cada grupo
       const newColorMap: { [key: string]: string } = {}
@@ -183,7 +228,18 @@ function MapUpdater({
       const geoJsonLayer = L.geoJSON(data, {
         style: (feature) => {
           if (!feature || !feature.properties) return {}
-          const key = feature.properties[colorBy] || "Desconocido"
+
+          let key = "Desconocido"
+          if (colorBy === "DISTRITO_L") {
+            key = feature.properties.DISTRITO_L_NOMBRE || feature.properties.DISTRITO_LOCAL_NOMBRE || "No asignado"
+          } else if (colorBy === "DISTRITO_F") {
+            key = feature.properties.DISTRITO_F_NOMBRE || feature.properties.DISTRITO_FEDERAL_NOMBRE || "No asignado"
+          } else if (colorBy === "MUNICIPIO") {
+            key = feature.properties.MUNICIPIO_NOMBRE_COLORACION || feature.properties.MUNICIPIO_NOMBRE || "No asignado"
+          } else {
+            key = feature.properties[colorBy] || "Desconocido"
+          }
+
           return {
             fillColor: newColorMap[key] || "#cccccc",
             weight: 1,
@@ -211,9 +267,8 @@ function MapUpdater({
                 geoJsonLayer.resetStyle(e.target)
               }
             },
-            // Dentro del evento click, añadir código para resaltar la sección seleccionada
             click: (e) => {
-              console.log("Click en feature:", feature.properties)
+              console.log("🖱️ Click en feature:", feature.properties)
 
               // Detener la propagación del evento
               L.DomEvent.stopPropagation(e)
@@ -227,7 +282,19 @@ function MapUpdater({
               selectedLayerRef.current = e.target
 
               // Obtener el color de la sección seleccionada
-              const key = feature.properties[colorBy] || "Desconocido"
+              let key = "Desconocido"
+              if (colorBy === "DISTRITO_L") {
+                key = feature.properties.DISTRITO_L_NOMBRE || feature.properties.DISTRITO_LOCAL_NOMBRE || "No asignado"
+              } else if (colorBy === "DISTRITO_F") {
+                key =
+                  feature.properties.DISTRITO_F_NOMBRE || feature.properties.DISTRITO_FEDERAL_NOMBRE || "No asignado"
+              } else if (colorBy === "MUNICIPIO") {
+                key =
+                  feature.properties.MUNICIPIO_NOMBRE_COLORACION || feature.properties.MUNICIPIO_NOMBRE || "No asignado"
+              } else {
+                key = feature.properties[colorBy] || "Desconocido"
+              }
+
               const color = newColorMap[key] || "#cccccc"
 
               // Aplicar estilo de selección
@@ -237,37 +304,23 @@ function MapUpdater({
                 fillOpacity: 0.7,
               })
 
-              // LÍNEA 362 - PROBLEMA IDENTIFICADO: Usar SECCION_ID directamente
-              // Esta línea puede estar usando información incorrecta si SECCION_ID no está presente o es incorrecto
-              console.log("LÍNEA 362 - Información potencialmente incorrecta:", {
-                SECCION_ID: feature.properties.SECCION_ID,
-                SECCION: feature.properties.SECCION,
-                allProperties: feature.properties,
-              })
+              // Extraer ID de forma consistente
+              const seccionIdParaConsulta = extraerIdSeccion(feature.properties)
 
-              // Validar que tenemos un ID válido antes de proceder
-              let seccionId: number | null = null
-
-              // Priorizar SECCION_ID si existe y es válido
-              if (feature.properties.SECCION_ID && !isNaN(Number(feature.properties.SECCION_ID))) {
-                seccionId = Number(feature.properties.SECCION_ID)
-                console.log("Usando SECCION_ID:", seccionId)
-              }
-              // Si no, intentar usar SECCION como fallback
-              else if (feature.properties.SECCION && !isNaN(Number(feature.properties.SECCION))) {
-                seccionId = Number(feature.properties.SECCION)
-                console.log("Usando SECCION como fallback:", seccionId)
-              }
-
-              if (seccionId !== null) {
-                console.log("LÍNEA 386 - Información correcta - Llamando onSeccionSelect con ID:", seccionId)
-                onSeccionSelect(seccionId, feature.properties, color)
+              if (seccionIdParaConsulta !== null) {
+                console.log("🎯 Llamando onSeccionSelect con ID:", seccionIdParaConsulta)
+                onSeccionSelect(seccionIdParaConsulta, feature.properties, color)
               } else {
-                console.error("No se pudo determinar un ID de sección válido:", {
-                  SECCION_ID: feature.properties.SECCION_ID,
-                  SECCION: feature.properties.SECCION,
-                  properties: feature.properties,
-                })
+                console.error("❌ No se pudo determinar un ID válido para la consulta")
+                alert(`Error: No se pudo determinar el ID de la sección.
+                
+Información disponible:
+- GeoJSON ID: ${feature.properties.ID}
+- GeoJSON SECCION: ${feature.properties.SECCION}
+- BD ID: ${feature.properties.BD_ID}
+- BD NOMBRE: ${feature.properties.BD_NOMBRE}
+
+Por favor, verifica la configuración del GeoJSON y la base de datos.`)
               }
             },
           })
@@ -300,9 +353,18 @@ function MapUpdater({
 interface MapComponentProps {
   geoJsonData: any | null
   colorBy: string
+  height?: number
+  showControls?: boolean
+  onSectionClick?: (sectionId: string, properties: any) => void
 }
 
-export default function MapComponent({ geoJsonData, colorBy }: MapComponentProps) {
+export default function MapComponent({
+  geoJsonData,
+  colorBy,
+  height = 600,
+  showControls = true,
+  onSectionClick,
+}: MapComponentProps) {
   const [colorMap, setColorMap] = useState<{ [key: string]: string }>({})
   const [selectedSeccionId, setSelectedSeccionId] = useState<number | null>(null)
   const [selectedSeccionProps, setSelectedSeccionProps] = useState<ExtendedFeatureProperties | null>(null)
@@ -313,8 +375,8 @@ export default function MapComponent({ geoJsonData, colorBy }: MapComponentProps
   const [error, setError] = useState<string | null>(null)
   const [apiCallCount, setApiCallCount] = useState(0)
   const [selectedSectionColor, setSelectedSectionColor] = useState<string>("#cccccc")
-  // Añadir un nuevo estado para almacenar los datos crudos de la API
   const [rawApiData, setRawApiData] = useState<any>(null)
+  const geoJsonLayerRef = useRef<L.GeoJSON | null>(null)
 
   // Asegurarse de que el icono de Leaflet esté configurado correctamente
   useEffect(() => {
@@ -333,22 +395,18 @@ export default function MapComponent({ geoJsonData, colorBy }: MapComponentProps
     }
   }, [])
 
-  // Modificar la función loadPersonasBySeccion para usar useCallback y mejorar la depuración
+  // Función para cargar personas por sección
   const loadPersonasBySeccion = useCallback(
     async (seccionId: number) => {
       try {
-        console.log(`Iniciando carga de datos para sección ${seccionId} (llamada #${apiCallCount + 1})`)
+        console.log(`🔄 Iniciando carga de datos para sección ${seccionId} (llamada #${apiCallCount + 1})`)
         setLoading(true)
         setError(null)
         setApiCallCount((prev) => prev + 1)
-        setRawApiData(null) // Limpiar datos anteriores
+        setRawApiData(null)
 
-        // Usar un timeout para asegurar que la UI se actualice antes de la llamada a la API
-        await new Promise((resolve) => setTimeout(resolve, 0))
-
-        console.log(`Realizando fetch a /api/secciones/${seccionId}/personas`)
+        console.log(`📡 Realizando fetch a /api/secciones/${seccionId}/personas`)
         const response = await fetch(`/api/secciones/${seccionId}/personas`, {
-          // Añadir un parámetro para evitar caché
           headers: {
             "Cache-Control": "no-cache, no-store, must-revalidate",
             Pragma: "no-cache",
@@ -358,35 +416,30 @@ export default function MapComponent({ geoJsonData, colorBy }: MapComponentProps
 
         if (!response.ok) {
           const errorText = await response.text()
-          console.error(`Error en la respuesta (${response.status}):`, errorText)
+          console.error(`❌ Error en la respuesta (${response.status}):`, errorText)
           setError(`Error al cargar datos: ${response.status} ${response.statusText}`)
           throw new Error(`Error al cargar personas: ${response.status} ${response.statusText}`)
         }
 
         const data = await response.json()
-        console.log("Datos recibidos de la API:", data)
+        console.log("📦 Datos recibidos de la API:", data)
 
-        // Guardar los datos crudos para mostrarlos
         setRawApiData(data)
-
-        // Asegurar que guardamos todos los datos recibidos
         setPersonas(data.personas || [])
         setSeccionInfo(data.seccion || null)
 
-        // Mostrar información detallada en la consola para depuración
-        console.log("Información de sección guardada:", data.seccion)
-        console.log("Personas guardadas:", data.personas?.length || 0)
+        console.log("💾 Información de sección guardada:", data.seccion)
+        console.log("👥 Personas guardadas:", data.personas?.length || 0)
 
-        // Verificar si los datos están vacíos
         if (!data.seccion) {
-          console.warn("No se recibió información de la sección")
+          console.warn("⚠️ No se recibió información de la sección")
         }
 
         if (!data.personas || data.personas.length === 0) {
-          console.log("No se recibieron personas para esta sección")
+          console.log("ℹ️ No se recibieron personas para esta sección")
         }
       } catch (error) {
-        console.error("Error al cargar personas:", error)
+        console.error("❌ Error al cargar personas:", error)
         setError(`Error al cargar datos: ${error instanceof Error ? error.message : String(error)}`)
       } finally {
         setLoading(false)
@@ -398,17 +451,15 @@ export default function MapComponent({ geoJsonData, colorBy }: MapComponentProps
   // Manejar la selección de una sección
   const handleSeccionSelect = useCallback(
     (seccionId: number, properties: ExtendedFeatureProperties, color: string) => {
-      console.log("Sección seleccionada:", seccionId, properties, "Color:", color)
+      console.log("🎯 Sección seleccionada:", seccionId, properties, "Color:", color)
       setSelectedSeccionId(seccionId)
       setSelectedSeccionProps(properties)
       setSelectedSectionColor(color)
       setShowPersonas(false)
       setError(null)
 
-      // Usar un timeout para asegurar que la UI se actualice antes de cargar los datos
-      setTimeout(() => {
-        loadPersonasBySeccion(seccionId)
-      }, 10)
+      // Cargar datos de la sección
+      loadPersonasBySeccion(seccionId)
     },
     [loadPersonasBySeccion],
   )
@@ -573,7 +624,7 @@ export default function MapComponent({ geoJsonData, colorBy }: MapComponentProps
               )}
               <CardTitle>
                 {selectedSeccionId
-                  ? `Sección Electoral: ${selectedSeccionProps?.SECCION || seccionInfo?.nombre || selectedSeccionId}`
+                  ? `Sección Electoral: ${selectedSeccionProps?.SECCION || selectedSeccionProps?.BD_NOMBRE || seccionInfo?.nombre || selectedSeccionId}`
                   : "Información Electoral"}
               </CardTitle>
             </div>
@@ -608,12 +659,13 @@ export default function MapComponent({ geoJsonData, colorBy }: MapComponentProps
             ) : selectedSeccionId ? (
               !showPersonas ? (
                 <div className="space-y-4">
-                  {/* Información política y demográfica combinada y simplificada */}
+                  {/* Información política y demográfica */}
                   <div className="grid grid-cols-2 gap-3">
                     <div className="p-3 bg-gray-50 rounded-md border border-gray-100">
                       <h3 className="text-xs font-semibold text-gray-500 mb-1">Distrito Local</h3>
                       <div className="text-sm font-medium">
-                        {selectedSeccionProps?.DISTRITO_LOCAL_NOMBRE ||
+                        {selectedSeccionProps?.DISTRITO_L_NOMBRE ||
+                          selectedSeccionProps?.DISTRITO_LOCAL_NOMBRE ||
                           seccionInfo?.distritoLocal?.nombre ||
                           "No asignado"}
                       </div>
@@ -621,7 +673,8 @@ export default function MapComponent({ geoJsonData, colorBy }: MapComponentProps
                     <div className="p-3 bg-gray-50 rounded-md border border-gray-100">
                       <h3 className="text-xs font-semibold text-gray-500 mb-1">Distrito Federal</h3>
                       <div className="text-sm font-medium">
-                        {selectedSeccionProps?.DISTRITO_FEDERAL_NOMBRE ||
+                        {selectedSeccionProps?.DISTRITO_F_NOMBRE ||
+                          selectedSeccionProps?.DISTRITO_FEDERAL_NOMBRE ||
                           seccionInfo?.distritoFederal?.nombre ||
                           "No asignado"}
                       </div>
@@ -629,7 +682,10 @@ export default function MapComponent({ geoJsonData, colorBy }: MapComponentProps
                     <div className="p-3 bg-gray-50 rounded-md border border-gray-100">
                       <h3 className="text-xs font-semibold text-gray-500 mb-1">Municipio</h3>
                       <div className="text-sm font-medium">
-                        {selectedSeccionProps?.MUNICIPIO_NOMBRE || seccionInfo?.municipio?.nombre || "No asignado"}
+                        {selectedSeccionProps?.MUNICIPIO_NOMBRE_COLORACION ||
+                          selectedSeccionProps?.MUNICIPIO_NOMBRE ||
+                          seccionInfo?.municipio?.nombre ||
+                          "No asignado"}
                       </div>
                     </div>
                     <div className="p-3 bg-gray-50 rounded-md border border-gray-100">
@@ -644,14 +700,59 @@ export default function MapComponent({ geoJsonData, colorBy }: MapComponentProps
                     </div>
                   </div>
 
-                  {/* Información de depuración */}
+                  {/* Información de depuración mejorada */}
                   <div className="p-3 bg-gray-50 rounded-md border border-gray-100 text-xs">
-                    <h3 className="font-semibold text-gray-500 mb-1">Información de depuración</h3>
-                    <div>ID de sección: {selectedSeccionId}</div>
-                    <div>Datos de API recibidos: {seccionInfo ? "Sí" : "No"}</div>
-                    <div>Datos de GeoJSON: {selectedSeccionProps ? "Sí" : "No"}</div>
+                    <h3 className="font-semibold text-gray-500 mb-1">Información de mapeo GeoJSON ↔ BD</h3>
+                    <div className="space-y-1">
+                      <div>
+                        🗺️ GeoJSON ID: <span className="font-mono">{selectedSeccionProps?.ID}</span>
+                      </div>
+                      <div>
+                        📍 GeoJSON SECCION: <span className="font-mono">{selectedSeccionProps?.SECCION}</span>
+                      </div>
+                      <div>
+                        🏛️ GeoJSON DISTRITO_L: <span className="font-mono">{selectedSeccionProps?.DISTRITO_L}</span> →{" "}
+                        {selectedSeccionProps?.DISTRITO_L_NOMBRE}
+                      </div>
+                      <div>
+                        🏛️ GeoJSON DISTRITO_F: <span className="font-mono">{selectedSeccionProps?.DISTRITO_F}</span> →{" "}
+                        {selectedSeccionProps?.DISTRITO_F_NOMBRE}
+                      </div>
+                      <div>
+                        🏢 GeoJSON MUNICIPIO: <span className="font-mono">{selectedSeccionProps?.MUNICIPIO}</span> →{" "}
+                        {selectedSeccionProps?.MUNICIPIO_NOMBRE}
+                      </div>
+                      <div>
+                        🎯 BD ID (usado para consulta):{" "}
+                        <span className="font-mono text-green-600">
+                          {selectedSeccionProps?.BD_ID || selectedSeccionId}
+                        </span>
+                      </div>
+                      <div>
+                        📝 BD NOMBRE:{" "}
+                        <span className="font-mono">{selectedSeccionProps?.BD_NOMBRE || seccionInfo?.nombre}</span>
+                      </div>
+                      <div>✅ Datos de API recibidos: {seccionInfo ? "Sí" : "No"}</div>
+                      <div>📊 Datos de GeoJSON: {selectedSeccionProps ? "Sí" : "No"}</div>
+                    </div>
 
-                    {/* Añadir un botón para mostrar/ocultar los datos crudos */}
+                    {/* Verificación de consistencia mejorada */}
+                    {selectedSeccionProps?.SECCION &&
+                      selectedSeccionProps?.BD_NOMBRE &&
+                      selectedSeccionProps.SECCION.toString() !== selectedSeccionProps.BD_NOMBRE.toString() && (
+                        <div className="mt-2 p-2 bg-blue-100 border border-blue-300 rounded text-blue-800">
+                          ℹ️ Mapeo: GeoJSON SECCION ({selectedSeccionProps.SECCION}) → BD NOMBRE (
+                          {selectedSeccionProps.BD_NOMBRE})
+                        </div>
+                      )}
+
+                    {!selectedSeccionProps?.BD_ID && (
+                      <div className="mt-2 p-2 bg-yellow-100 border border-yellow-300 rounded text-yellow-800">
+                        ⚠️ No se encontró mapeo en la BD para esta sección
+                      </div>
+                    )}
+
+                    {/* Botón para mostrar/ocultar los datos crudos */}
                     <div className="mt-2">
                       <details>
                         <summary className="cursor-pointer text-blue-500 hover:text-blue-700">
@@ -712,6 +813,7 @@ export default function MapComponent({ geoJsonData, colorBy }: MapComponentProps
                       <p className="text-muted-foreground mb-4">No hay personas registradas en esta sección.</p>
                       <Button
                         asChild
+                        size="sm"
                         style={{
                           backgroundColor: selectedSectionColor,
                           borderColor: selectedSectionColor,
