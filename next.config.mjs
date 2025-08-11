@@ -1,13 +1,5 @@
 /** @type {import('next').NextConfig} */
 const nextConfig = {
-  reactStrictMode: true,
-  swcMinify: true,
-  eslint: {
-    ignoreDuringBuilds: true,
-  },
-  typescript: {
-    ignoreBuildErrors: true,
-  },
   images: {
     unoptimized: true,
   },
@@ -25,12 +17,6 @@ const nextConfig = {
     };
     
     return config;
-  },
-  // Desactivar características experimentales que podrían causar problemas
-  experimental: {
-    // Desactivar características experimentales
-    esmExternals: false,
-    serverActions: false,
   },
 }
 

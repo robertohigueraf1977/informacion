@@ -7,13 +7,7 @@ import { EliminarCasillaButton } from "@/components/casillas/eliminar-casilla-bu
 import { LeafletProvider } from "@/components/leaflet-prrovider"
 import { UserRole } from "@prisma/client"
 
-interface EditarCasillaPageProps {
-  params: {
-    id: string
-  }
-}
-
-export default async function EditarCasillaPage({ params }: EditarCasillaPageProps) {
+export default async function EditarCasillaPage({ params, searchParams }: { params: { id: string }; searchParams: { [key: string]: string | string[] | undefined }; }) {
   const session = await getServerSession(authOptions)
 
   if (!session?.user) {

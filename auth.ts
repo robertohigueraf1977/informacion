@@ -74,13 +74,5 @@ export const authOptions = {
   },
 }
 
-export const { handlers, signIn, signOut } = NextAuth(authOptions)
-
-export const auth = async () => {
-  try {
-    return await handlers.GET({ headers: new Headers() })
-  } catch (error) {
-    console.error("Auth error:", error)
-    return null
-  }
-}
+const handler = NextAuth(authOptions)
+export { handler as GET, handler as POST }

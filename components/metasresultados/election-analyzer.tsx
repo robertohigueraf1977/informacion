@@ -1,152 +1,292 @@
 "use client"
 
-import type React from "react"
-import { useState, useEffect } from "react"
-import GoalsAnalyzer from "./goals-analyzer"
-import { parse } from "papaparse"
+import { useState, useMemo } from "react"
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
+import { Badge } from "@/components/ui/badge"
+import { Button } from "@/components/ui/button"
+import { Alert, AlertDescription } from "@/components/ui/alert"
+import { Loader2, BarChart3, PieChart, TrendingUp, FileText, Target, Users, Flag } from 'lucide-react'
 
-interface ElectionData {
-  DISTRITO_F: string
-  DISTRITO_L: string
-  MUNICIPIO: string
-  SECCION: string
-  [key: string]: string
-}
+import { CsvUploader } from "./csv-uploader"
+import { DataExplorer } from "./data-explorer"
+import { ResultsSummary } from "./results-summary"
+import { ElectoralResultsChart } from "./electoral-results-chart"
+import { StatisticalAnalysis } from "./statistical-analysis"
+import { GoalsAnalyzer } from "./goals-analyzer"
+import { ElectoralFilters } from "./electoral-filters"
+import { EmptyState } from "./empty-state"
 
-interface ElectionAnalyzerProps {
-  csvData: string
-}
+// Partidos mexicanos específicos (excluyendo DISTRITO_F y DISTRITO_L)
+const MEXICAN_PARTIES = [
+  'PAN', 'PVEM_PT', 'PRI', 'PVEM', 'NO_REGISTRADAS', 'NULOS', 'PT', 'MC', 'PRD',
+  'PAN-PRI-PRD', 'PAN-PRI', 'PAN-PRD', 'PRI-PRD', 'PVEM_PT_MORENA', 'PVEM_MORENA',
+  'PT_MORENA', 'MORENA'
+]
 
-const ElectionAnalyzer: React.FC<ElectionAnalyzerProps> = ({ csvData }) => {
-  const [electionData, setElectionData] = useState<ElectionData[]>([])
-  const [filteredData, setFilteredData] = useState<ElectionData[]>([])
-  const [selectedDistritoF, setSelectedDistritoF] = useState<string>("")
-  const [selectedDistritoL, setSelectedDistritoL] = useState<string>("")
-  const [selectedMunicipio, setSelectedMunicipio] = useState<string>("")
-  const [selectedSeccion, setSelectedSeccion] = useState<string>("")
-  const [uniqueDistritosF, setUniqueDistritosF] = useState<string[]>([])
-  const [uniqueDistritosL, setUniqueDistritosL] = useState<string[]>([])
-  const [uniqueMunicipios, setUniqueMunicipios] = useState<string[]>([])
-  const [uniqueSecciones, setUniqueSecciones] = useState<string[]>([])
+export function ElectionAnalyzer() {
+  const [data, setData] = useState<any[]>([])
+  const [loading, setLoading] = useState(false)
+  const [error, setError] = useState<string | null>(null)
+  const [activeTab, setActiveTab] = useState("upload")
 
-  useEffect(() => {
-    const parseCSVData = async () => {
-      parse(csvData, {
-        header: true,
-        skipEmptyLines: true,
-        complete: (results) => {
-          const data = results.data as ElectionData[]
-          setElectionData(data)
-          setFilteredData(data)
+  // Estados de filtros
+  const [selectedMunicipio, setSelectedMunicipio] = useState("todos")
+  const [selectedDistrito, setSelectedDistrito] = useState("todos")
+  const [selectedSeccion, setSelectedSeccion] = useState("todos")
+  const [selectedParty, setSelectedParty] = useState("")
 
-          // Extract unique values for dropdowns
-          const distritosF = [...new Set(data.map((item) => item.DISTRITO_F))].sort()
-          const distritosL = [...new Set(data.map((item) => item.DISTRITO_L))].sort()
-          const municipios = [...new Set(data.map((item) => item.MUNICIPIO))].sort()
-          const secciones = [...new Set(data.map((item) => item.SECCION))].sort()
+  // Datos filtrados
+  const filteredData = useMemo(() => {
+    if (!data || data.length === 0) return []
 
-          setUniqueDistritosF(distritosF)
-          setUniqueDistritosL(distritosL)
-          setUniqueMunicipios(municipios)
-          setUniqueSecciones(secciones)
-        },
-      })
+    let filtered = [...data]
+
+    if (selectedMunicipio !== "todos") {
+      filtered = filtered.filter(row =>
+        (row.MUNICIPIO || row.municipio) === selectedMunicipio
+      )
     }
 
-    parseCSVData()
-  }, [csvData])
-
-  useEffect(() => {
-    let newData = [...electionData]
-
-    if (selectedDistritoF) {
-      newData = newData.filter((item) => item.DISTRITO_F === selectedDistritoF)
+    if (selectedDistrito !== "todos") {
+      filtered = filtered.filter(row =>
+        (row.DISTRITO || row.distrito) === selectedDistrito
+      )
     }
 
-    if (selectedDistritoL) {
-      newData = newData.filter((item) => item.DISTRITO_L === selectedDistritoL)
+    if (selectedSeccion !== "todos") {
+      filtered = filtered.filter(row =>
+        (row.SECCION || row.seccion)?.toString() === selectedSeccion
+      )
     }
 
-    if (selectedMunicipio) {
-      newData = newData.filter((item) => item.MUNICIPIO === selectedMunicipio)
+    return filtered
+  }, [data, selectedMunicipio, selectedDistrito, selectedSeccion])
+
+  // Estadísticas generales
+  const stats = useMemo(() => {
+    if (!data || data.length === 0) {
+      return {
+        totalRecords: 0,
+        totalMunicipios: 0,
+        totalDistritos: 0,
+        totalSecciones: 0,
+        hasValidData: false
+      }
     }
 
-    if (selectedSeccion) {
-      newData = newData.filter((item) => item.SECCION === selectedSeccion)
+    const totalRecords = data.length
+    const totalMunicipios = new Set(data.map(row => row.MUNICIPIO || row.municipio).filter(Boolean)).size
+    const totalDistritos = new Set(data.map(row => row.DISTRITO || row.distrito).filter(Boolean)).size
+    const totalSecciones = new Set(data.map(row => row.SECCION || row.seccion).filter(Boolean)).size
+
+    // Verificar si hay al menos un partido con datos
+    const hasValidData = MEXICAN_PARTIES.some(party =>
+      data.some(row => Number(row[party]) > 0)
+    )
+
+    return {
+      totalRecords,
+      totalMunicipios,
+      totalDistritos,
+      totalSecciones,
+      hasValidData
     }
+  }, [data])
 
-    setFilteredData(newData)
-  }, [selectedDistritoF, selectedDistritoL, selectedMunicipio, selectedSeccion, electionData])
+  const handleDataLoad = (newData: any[]) => {
+    setData(newData)
+    setError(null)
 
-  const handleDistritoFChange = (e: React.ChangeEvent<HTMLSelectElement>) => {
-    setSelectedDistritoF(e.target.value)
+    // Resetear filtros
+    setSelectedMunicipio("todos")
+    setSelectedDistrito("todos")
+    setSelectedSeccion("todos")
+    setSelectedParty("")
+
+    // Cambiar a la pestaña de resumen si hay datos válidos
+    if (newData && newData.length > 0) {
+      setActiveTab("summary")
+    }
   }
 
-  const handleDistritoLChange = (e: React.ChangeEvent<HTMLSelectElement>) => {
-    setSelectedDistritoL(e.target.value)
+  const handleError = (errorMessage: string) => {
+    setError(errorMessage)
+    setData([])
   }
 
-  const handleMunicipioChange = (e: React.ChangeEvent<HTMLSelectElement>) => {
-    setSelectedMunicipio(e.target.value)
+  const clearData = () => {
+    setData([])
+    setError(null)
+    setSelectedMunicipio("todos")
+    setSelectedDistrito("todos")
+    setSelectedSeccion("todos")
+    setSelectedParty("")
+    setActiveTab("upload")
   }
 
-  const handleSeccionChange = (e: React.ChangeEvent<HTMLSelectElement>) => {
-    setSelectedSeccion(e.target.value)
+  const handlePartyChange = (party: string) => {
+    setSelectedParty(party)
   }
 
   return (
-    <div>
-      <div>
-        <label htmlFor="distritoF">Distrito Federal:</label>
-        <select id="distritoF" value={selectedDistritoF} onChange={handleDistritoFChange}>
-          <option value="">Todos</option>
-          {uniqueDistritosF.map((distrito) => (
-            <option key={distrito} value={distrito}>
-              {distrito}
-            </option>
-          ))}
-        </select>
-      </div>
+    <div className="space-y-6">
+      {/* Encabezado */}
+      <Card>
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2">
+            <Flag className="h-6 w-6" />
+            Analizador Electoral - Sistema Mexicano
+          </CardTitle>
+          {stats.hasValidData && (
+            <div className="flex items-center gap-4 text-sm text-muted-foreground">
+              <Badge variant="outline">{stats.totalRecords.toLocaleString()} registros</Badge>
+              <Badge variant="outline">{stats.totalMunicipios} municipios</Badge>
+              <Badge variant="outline">{stats.totalDistritos} distritos</Badge>
+              <Badge variant="outline">{stats.totalSecciones} secciones</Badge>
+              {data.length !== filteredData.length && (
+                <Badge variant="secondary">
+                  {filteredData.length.toLocaleString()} filtrados
+                </Badge>
+              )}
+            </div>
+          )}
+        </CardHeader>
+        {stats.hasValidData && (
+          <CardContent>
+            <div className="flex items-center justify-between">
+              <p className="text-sm text-muted-foreground">
+                Sistema configurado para partidos mexicanos: PAN, PRI, PRD, MORENA, MC, PT, PVEM y coaliciones
+              </p>
+              <Button variant="outline" size="sm" onClick={clearData}>
+                Cargar nuevos datos
+              </Button>
+            </div>
+          </CardContent>
+        )}
+      </Card>
 
-      <div>
-        <label htmlFor="distritoL">Distrito Local:</label>
-        <select id="distritoL" value={selectedDistritoL} onChange={handleDistritoLChange}>
-          <option value="">Todos</option>
-          {uniqueDistritosL.map((distrito) => (
-            <option key={distrito} value={distrito}>
-              {distrito}
-            </option>
-          ))}
-        </select>
-      </div>
+      {/* Mostrar error si existe */}
+      {error && (
+        <Alert variant="destructive">
+          <AlertDescription>{error}</AlertDescription>
+        </Alert>
+      )}
 
-      <div>
-        <label htmlFor="municipio">Municipio:</label>
-        <select id="municipio" value={selectedMunicipio} onChange={handleMunicipioChange}>
-          <option value="">Todos</option>
-          {uniqueMunicipios.map((municipio) => (
-            <option key={municipio} value={municipio}>
-              {municipio}
-            </option>
-          ))}
-        </select>
-      </div>
+      {/* Filtros geográficos (solo si hay datos) */}
+      {stats.hasValidData && (
+        <ElectoralFilters
+          data={data}
+          selectedMunicipio={selectedMunicipio}
+          selectedDistrito={selectedDistrito}
+          selectedSeccion={selectedSeccion}
+          onMunicipioChange={setSelectedMunicipio}
+          onDistritoChange={setSelectedDistrito}
+          onSeccionChange={setSelectedSeccion}
+          totalRecords={filteredData.length}
+          originalRecords={data.length}
+        />
+      )}
 
-      <div>
-        <label htmlFor="seccion">Sección:</label>
-        <select id="seccion" value={selectedSeccion} onChange={handleSeccionChange}>
-          <option value="">Todos</option>
-          {uniqueSecciones.map((seccion) => (
-            <option key={seccion} value={seccion}>
-              {seccion}
-            </option>
-          ))}
-        </select>
-      </div>
+      {/* Contenido principal */}
+      {!stats.hasValidData ? (
+        <EmptyState onFileSelect={() => setActiveTab("upload")} />
+      ) : (
+        <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-6">
+          <TabsList className="grid w-full grid-cols-6">
+            <TabsTrigger value="upload" className="flex items-center gap-2">
+              <FileText className="h-4 w-4" />
+              Datos
+            </TabsTrigger>
+            <TabsTrigger value="summary" className="flex items-center gap-2">
+              <BarChart3 className="h-4 w-4" />
+              Resumen
+            </TabsTrigger>
+            <TabsTrigger value="charts" className="flex items-center gap-2">
+              <PieChart className="h-4 w-4" />
+              Gráficos
+            </TabsTrigger>
+            <TabsTrigger value="analysis" className="flex items-center gap-2">
+              <TrendingUp className="h-4 w-4" />
+              Análisis
+            </TabsTrigger>
+            <TabsTrigger value="goals" className="flex items-center gap-2">
+              <Target className="h-4 w-4" />
+              Metas
+            </TabsTrigger>
+            <TabsTrigger value="explorer" className="flex items-center gap-2">
+              <Users className="h-4 w-4" />
+              Explorar
+            </TabsTrigger>
+          </TabsList>
 
-      <GoalsAnalyzer data={filteredData} />
+          <TabsContent value="upload" className="space-y-6">
+            <CsvUploader
+              onDataLoad={handleDataLoad}
+              onError={handleError}
+              onLoadingChange={setLoading}
+              expectedColumns={MEXICAN_PARTIES.concat(['SECCION', 'MUNICIPIO', 'DISTRITO', 'LISTA_NOMINAL'])}
+            />
+          </TabsContent>
+
+          <TabsContent value="summary" className="space-y-6">
+            <ResultsSummary
+              data={filteredData}
+              selectedMunicipio={selectedMunicipio}
+              selectedDistrito={selectedDistrito}
+              selectedSeccion={selectedSeccion}
+            />
+          </TabsContent>
+
+          <TabsContent value="charts" className="space-y-6">
+            <ElectoralResultsChart data={filteredData} />
+          </TabsContent>
+
+          <TabsContent value="analysis" className="space-y-6">
+            <StatisticalAnalysis
+              data={filteredData}
+              selectedParty={selectedParty}
+              onPartyChange={handlePartyChange}
+              selectedMunicipio={selectedMunicipio}
+              selectedDistrito={selectedDistrito}
+              selectedSeccion={selectedSeccion}
+            />
+          </TabsContent>
+
+          <TabsContent value="goals" className="space-y-6">
+            <GoalsAnalyzer
+              data={filteredData}
+              parties={MEXICAN_PARTIES}
+              selectedMunicipio={selectedMunicipio}
+              selectedDistrito={selectedDistrito}
+              selectedSeccion={selectedSeccion}
+            />
+          </TabsContent>
+
+          <TabsContent value="explorer" className="space-y-6">
+            <DataExplorer
+              data={filteredData}
+            />
+          </TabsContent>
+        </Tabs>
+      )}
+
+      {/* Indicador de carga */}
+      {loading && (
+        <div className="fixed inset-0 bg-background/80 backdrop-blur-sm z-50 flex items-center justify-center">
+          <Card className="p-6">
+            <div className="flex items-center gap-4">
+              <Loader2 className="h-6 w-6 animate-spin" />
+              <div>
+                <p className="font-medium">Procesando datos electorales...</p>
+                <p className="text-sm text-muted-foreground">
+                  Analizando partidos y coaliciones mexicanos
+                </p>
+              </div>
+            </div>
+          </Card>
+        </div>
+      )}
     </div>
   )
 }
-
-export default ElectionAnalyzer

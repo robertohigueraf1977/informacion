@@ -1,480 +1,539 @@
 "use client"
 
 import { useState, useMemo } from "react"
-import { CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card"
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
 import { Button } from "@/components/ui/button"
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
-import { Download, SortAsc, SortDesc, Search, Info, ChevronLeft, ChevronRight } from "lucide-react"
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
-import { CardSpotlight } from "@/components/ui/card-spotlight"
 import { Badge } from "@/components/ui/badge"
-import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip"
-import { StatCard } from "@/components/ui/stat-card"
-import { motion } from "framer-motion"
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
+import { Search, Download, Filter, SortAsc, SortDesc, Database, BarChart3, FileText, Eye } from 'lucide-react'
 
 interface DataExplorerProps {
   data: any[]
 }
 
+// Partidos y coaliciones mexicanos específicos
+const MEXICAN_PARTIES = [
+  'PAN', 'PVEM_PT', 'PRI', 'PVEM', 'NO_REGISTRADAS', 'NULOS', 'PT', 'MC', 'PRD',
+  'PAN-PRI-PRD', 'PAN-PRI', 'PAN-PRD', 'PRI-PRD', 'PVEM_PT_MORENA', 'PVEM_MORENA',
+  'PT_MORENA', 'MORENA'
+]
+
+const ADMINISTRATIVE_COLUMNS = [
+  'SECCION', 'CASILLA', 'DISTRITO', 'MUNICIPIO', 'LISTA_NOMINAL', 'TOTAL_VOTOS'
+]
+
 export function DataExplorer({ data }: DataExplorerProps) {
   const [searchTerm, setSearchTerm] = useState("")
-  const [sortField, setSortField] = useState<string>("SECCION")
-  const [sortDirection, setSortDirection] = useState<"asc" | "desc">("asc")
+  const [sortColumn, setSortColumn] = useState("")
+  const [sortDirection, setSortDirection] = useState<"asc" | "desc">("desc")
+  const [filterColumn, setFilterColumn] = useState("")
+  const [filterValue, setFilterValue] = useState("")
   const [currentPage, setCurrentPage] = useState(1)
-  const [rowsPerPage, setRowsPerPage] = useState(10)
-  const [selectedParty, setSelectedParty] = useState<string | null>(null)
+  const [pageSize, setPageSize] = useState(25)
 
-  // Obtener todas las columnas disponibles
-  const columns = useMemo(() => {
+  // Análisis de columnas específico para datos electorales mexicanos
+  const columnAnalysis = useMemo(() => {
     if (!data || data.length === 0) return []
-    return Object.keys(data[0])
+
+    const firstRow = data[0]
+    return Object.keys(firstRow).map(column => {
+      const values = data.map(row => row[column]).filter(val => val !== null && val !== undefined && val !== "")
+      const uniqueValues = new Set(values)
+      const isNumeric = values.every(val => !isNaN(Number(val)) && val !== "")
+
+      // Determinar el tipo de columna
+      let columnType = 'unknown'
+      if (ADMINISTRATIVE_COLUMNS.includes(column.toUpperCase())) {
+        columnType = 'administrative'
+      } else if (MEXICAN_PARTIES.includes(column.toUpperCase())) {
+        columnType = 'party'
+      } else if (column.toUpperCase() === 'LISTA_NOMINAL') {
+        columnType = 'electoral_list'
+      } else if (isNumeric) {
+        columnType = 'numeric'
+      } else {
+        columnType = 'text'
+      }
+
+      let stats: any = {
+        column,
+        type: columnType,
+        isNumeric,
+        totalValues: values.length,
+        uniqueValues: uniqueValues.size,
+        nullValues: data.length - values.length,
+        completeness: (values.length / data.length) * 100
+      }
+
+      if (isNumeric && values.length > 0) {
+        const numericValues = values.map(val => Number(val))
+        stats.min = Math.min(...numericValues)
+        stats.max = Math.max(...numericValues)
+        stats.avg = numericValues.reduce((sum, val) => sum + val, 0) / numericValues.length
+        stats.sum = numericValues.reduce((sum, val) => sum + val, 0)
+
+        // Para partidos, calcular porcentaje del total
+        if (columnType === 'party') {
+          const totalVotes = data.reduce((sum, row) => {
+            return sum + MEXICAN_PARTIES.reduce((partySum, party) => {
+              return partySum + (Number(row[party]) || 0)
+            }, 0)
+          }, 0)
+          stats.percentageOfTotal = totalVotes > 0 ? (stats.sum / totalVotes) * 100 : 0
+        }
+      } else {
+        stats.topValues = Array.from(uniqueValues)
+          .map(val => ({
+            value: val,
+            count: values.filter(v => v === val).length
+          }))
+          .sort((a, b) => b.count - a.count)
+          .slice(0, 5)
+      }
+
+      return stats
+    })
   }, [data])
 
-  // Filtrar y ordenar los datos
-  const filteredData = useMemo(() => {
+  // Filtrar y ordenar datos
+  const processedData = useMemo(() => {
     if (!data || data.length === 0) return []
 
     let filtered = [...data]
 
-    // Filtrar por término de búsqueda
+    // Aplicar búsqueda
     if (searchTerm) {
-      filtered = filtered.filter((row) => {
-        return Object.values(row).some((value) => {
-          if (value === null || value === undefined) return false
-          return String(value).toLowerCase().includes(searchTerm.toLowerCase())
-        })
-      })
+      filtered = filtered.filter(row =>
+        Object.values(row).some(value =>
+          String(value).toLowerCase().includes(searchTerm.toLowerCase())
+        )
+      )
     }
 
-    // Ordenar los datos
-    if (sortField) {
+    // Aplicar filtro por columna
+    if (filterColumn && filterColumn !== "none" && filterValue) {
+      filtered = filtered.filter(row =>
+        String(row[filterColumn]).toLowerCase().includes(filterValue.toLowerCase())
+      )
+    }
+
+    // Aplicar ordenamiento
+    if (sortColumn) {
       filtered.sort((a, b) => {
-        const aValue = a[sortField]
-        const bValue = b[sortField]
+        const aVal = a[sortColumn]
+        const bVal = b[sortColumn]
 
         // Manejar valores numéricos
-        if (!isNaN(Number(aValue)) && !isNaN(Number(bValue))) {
-          return sortDirection === "asc" ? Number(aValue) - Number(bValue) : Number(bValue) - Number(aValue)
+        if (!isNaN(Number(aVal)) && !isNaN(Number(bVal))) {
+          const comparison = Number(aVal) - Number(bVal)
+          return sortDirection === "asc" ? comparison : -comparison
         }
 
         // Manejar valores de texto
-        const aString = String(aValue || "").toLowerCase()
-        const bString = String(bValue || "").toLowerCase()
-
-        return sortDirection === "asc" ? aString.localeCompare(bString) : bString.localeCompare(aString)
+        const comparison = String(aVal).localeCompare(String(bVal))
+        return sortDirection === "asc" ? comparison : -comparison
       })
     }
 
     return filtered
-  }, [data, searchTerm, sortField, sortDirection])
+  }, [data, searchTerm, filterColumn, filterValue, sortColumn, sortDirection])
 
   // Paginación
   const paginatedData = useMemo(() => {
-    const startIndex = (currentPage - 1) * rowsPerPage
-    return filteredData.slice(startIndex, startIndex + rowsPerPage)
-  }, [filteredData, currentPage, rowsPerPage])
+    const startIndex = (currentPage - 1) * pageSize
+    return processedData.slice(startIndex, startIndex + pageSize)
+  }, [processedData, currentPage, pageSize])
 
-  // Calcular estadísticas para la columna seleccionada
-  const columnStats = useMemo(() => {
-    if (!selectedParty || !data || data.length === 0) return null
+  const totalPages = Math.ceil(processedData.length / pageSize)
 
-    const values = data.map((row) => Number(row[selectedParty])).filter((val) => !isNaN(val))
-
-    if (values.length === 0) return null
-
-    const sum = values.reduce((acc, val) => acc + val, 0)
-    const avg = sum / values.length
-    const max = Math.max(...values)
-    const min = Math.min(...values)
-
-    // Encontrar la sección con el valor máximo
-    const maxSection = data.find((row) => Number(row[selectedParty]) === max)?.SECCION
-    // Encontrar la sección con el valor mínimo
-    const minSection = data.find((row) => Number(row[selectedParty]) === min)?.SECCION
-
-    // Calcular la mediana
-    const sortedValues = [...values].sort((a, b) => a - b)
-    const midIndex = Math.floor(sortedValues.length / 2)
-    const median =
-      sortedValues.length % 2 === 0 ? (sortedValues[midIndex - 1] + sortedValues[midIndex]) / 2 : sortedValues[midIndex]
-
-    return {
-      count: values.length,
-      sum,
-      avg,
-      median,
-      max,
-      min,
-      maxSection,
-      minSection,
-    }
-  }, [selectedParty, data])
-
-  // Exportar datos a CSV
+  // Exportar datos
   const exportToCSV = () => {
-    if (!data || data.length === 0) return
+    if (processedData.length === 0) return
 
-    const headers = columns.join(",")
-    const csvData = [
-      headers,
-      ...filteredData.map((row) => {
-        return columns
-          .map((col) => {
-            const value = row[col]
-            // Manejar valores que contienen comas
-            if (typeof value === "string" && value.includes(",")) {
-              return `"${value}"`
-            }
-            return value
-          })
-          .join(",")
-      }),
+    const headers = Object.keys(processedData[0])
+    const csvContent = [
+      headers.join(","),
+      ...processedData.map(row =>
+        headers.map(header => `"${row[header] || ""}"`).join(",")
+      )
     ].join("\n")
 
-    const blob = new Blob([csvData], { type: "text/csv;charset=utf-8;" })
-    const url = URL.createObjectURL(blob)
+    const blob = new Blob([csvContent], { type: "text/csv;charset=utf-8;" })
     const link = document.createElement("a")
+    const url = URL.createObjectURL(blob)
     link.setAttribute("href", url)
-    link.setAttribute("download", `datos_electorales_${new Date().toISOString().split("T")[0]}.csv`)
+    link.setAttribute("download", `datos_electorales_mexico_${new Date().toISOString().split("T")[0]}.csv`)
     link.style.visibility = "hidden"
     document.body.appendChild(link)
     link.click()
     document.body.removeChild(link)
   }
 
-  // Cambiar la dirección de ordenamiento
-  const toggleSortDirection = () => {
-    setSortDirection(sortDirection === "asc" ? "desc" : "asc")
+  const handleSort = (column: string) => {
+    if (sortColumn === column) {
+      setSortDirection(sortDirection === "asc" ? "desc" : "asc")
+    } else {
+      setSortColumn(column)
+      setSortDirection("desc")
+    }
+    setCurrentPage(1)
   }
 
-  // Calcular el número total de páginas
-  const totalPages = Math.ceil(filteredData.length / rowsPerPage)
+  // Análisis específico de datos electorales mexicanos
+  const electoralSummary = useMemo(() => {
+    if (!data || data.length === 0) return null
 
-  // Obtener partidos políticos (excluyendo columnas no relacionadas)
-  const parties = useMemo(() => {
-    return columns.filter(
-      (col) =>
-        col !== "SECCION" &&
-        col !== "DISTRITO" &&
-        col !== "MUNICIPIO" &&
-        col !== "LOCALIDAD" &&
-        col !== "LISTA_NOMINAL",
+    const partyColumns = columnAnalysis.filter(col => col.type === 'party')
+    const totalVotes = partyColumns.reduce((sum, party) => sum + (party.sum || 0), 0)
+    const totalListaNominal = data.reduce((sum, row) => sum + (Number(row.LISTA_NOMINAL) || 0), 0)
+    const participation = totalListaNominal > 0 ? (totalVotes / totalListaNominal) * 100 : 0
+
+    const partyResults = partyColumns.map(party => ({
+      name: party.column,
+      votes: party.sum || 0,
+      percentage: totalVotes > 0 ? ((party.sum || 0) / totalVotes) * 100 : 0
+    })).sort((a, b) => b.votes - a.votes)
+
+    return {
+      totalVotes,
+      totalListaNominal,
+      participation,
+      partyResults,
+      sections: data.length,
+      municipalities: new Set(data.map(row => row.MUNICIPIO).filter(Boolean)).size,
+      districts: new Set(data.map(row => row.DISTRITO).filter(Boolean)).size
+    }
+  }, [data, columnAnalysis])
+
+  if (!data || data.length === 0) {
+    return (
+      <Card>
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2">
+            <Database className="h-5 w-5" />
+            Explorador de Datos Electorales
+          </CardTitle>
+        </CardHeader>
+        <CardContent>
+          <div className="text-center py-8">
+            <Database className="h-12 w-12 mx-auto text-muted-foreground mb-4" />
+            <p className="text-muted-foreground">No hay datos electorales disponibles para explorar</p>
+          </div>
+        </CardContent>
+      </Card>
     )
-  }, [columns])
+  }
 
   return (
-    <div className="space-y-6 animate-in fade-in-50">
-      <Tabs defaultValue="table" className="space-y-4">
-        <TabsList className="bg-background border w-full p-1 rounded-lg">
-          <TabsTrigger
-            value="table"
-            className="data-[state=active]:bg-primary data-[state=active]:text-primary-foreground rounded-md py-2 flex-1"
-          >
-            Tabla de Datos
-          </TabsTrigger>
-          <TabsTrigger
-            value="stats"
-            className="data-[state=active]:bg-primary data-[state=active]:text-primary-foreground rounded-md py-2 flex-1"
-          >
-            Estadísticas
-          </TabsTrigger>
-        </TabsList>
+    <div className="space-y-6">
+      <Card>
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2">
+            <Database className="h-5 w-5" />
+            Explorador de Datos Electorales Mexicanos
+          </CardTitle>
+        </CardHeader>
+        <CardContent>
+          <Tabs defaultValue="data" className="space-y-4">
+            <TabsList>
+              <TabsTrigger value="data" className="flex items-center gap-2">
+                <Eye className="h-4 w-4" />
+                Vista de Datos
+              </TabsTrigger>
+              <TabsTrigger value="analysis" className="flex items-center gap-2">
+                <BarChart3 className="h-4 w-4" />
+                Análisis de Partidos
+              </TabsTrigger>
+              <TabsTrigger value="summary" className="flex items-center gap-2">
+                <FileText className="h-4 w-4" />
+                Resumen Electoral
+              </TabsTrigger>
+            </TabsList>
 
-        <TabsContent value="table">
-          <CardSpotlight>
-            <CardHeader className="flex flex-row items-center justify-between bg-secondary-soft rounded-t-lg">
-              <div>
-                <CardTitle className="text-primary">Explorador de Datos</CardTitle>
-                <CardDescription>
-                  {filteredData.length} registros encontrados de {data.length} totales
-                </CardDescription>
-              </div>
-              <div className="flex flex-wrap items-center gap-2">
+            <TabsContent value="data" className="space-y-4">
+              {/* Controles de filtrado y búsqueda */}
+              <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
                 <div className="relative">
-                  <Search className="h-4 w-4 absolute left-2 top-2.5 text-muted-foreground" />
+                  <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-muted-foreground" />
                   <Input
-                    placeholder="Buscar..."
+                    placeholder="Buscar en todos los campos..."
                     value={searchTerm}
-                    onChange={(e) => setSearchTerm(e.target.value)}
-                    className="pl-8 w-[200px] border-accent-soft"
+                    onChange={(e) => {
+                      setSearchTerm(e.target.value)
+                      setCurrentPage(1)
+                    }}
+                    className="pl-10"
                   />
                 </div>
-                <Button variant="outline" onClick={exportToCSV} className="flex items-center gap-2">
-                  <Download className="h-4 w-4" />
-                  Exportar CSV
-                </Button>
-              </div>
-            </CardHeader>
-            <CardContent>
-              <div className="flex flex-wrap items-center gap-2 mb-4">
-                <Select value={sortField} onValueChange={setSortField}>
-                  <SelectTrigger className="w-[180px] border-accent-soft">
-                    <SelectValue placeholder="Ordenar por" />
+
+                <Select value={filterColumn} onValueChange={setFilterColumn}>
+                  <SelectTrigger>
+                    <SelectValue placeholder="Filtrar por columna" />
                   </SelectTrigger>
                   <SelectContent>
-                    {columns.map((column) => (
+                    <SelectItem value="none">Sin filtro</SelectItem>
+                    {Object.keys(data[0] || {}).map(column => (
                       <SelectItem key={column} value={column}>
                         {column}
                       </SelectItem>
                     ))}
                   </SelectContent>
                 </Select>
-                <Button variant="outline" size="icon" onClick={toggleSortDirection} className="border-accent-soft">
-                  {sortDirection === "asc" ? <SortAsc className="h-4 w-4" /> : <SortDesc className="h-4 w-4" />}
-                </Button>
 
-                <Badge className="ml-auto">
-                  {filteredData.length} de {data.length} registros
-                </Badge>
-              </div>
-
-              <div className="rounded-md border border-accent-soft overflow-hidden">
-                <div className="overflow-x-auto">
-                  <Table>
-                    <TableHeader className="bg-secondary/50 sticky top-0">
-                      <TableRow>
-                        {columns.map((column) => (
-                          <TableHead
-                            key={column}
-                            className={`${column === sortField ? "bg-secondary" : ""} cursor-pointer hover:bg-secondary transition-colors`}
-                            onClick={() => {
-                              if (column === sortField) {
-                                toggleSortDirection()
-                              } else {
-                                setSortField(column)
-                                setSortDirection("asc")
-                              }
-                            }}
-                          >
-                            <div className="flex items-center">
-                              {column}
-                              {column === sortField && (
-                                <span className="ml-1">
-                                  {sortDirection === "asc" ? (
-                                    <SortAsc className="h-3 w-3" />
-                                  ) : (
-                                    <SortDesc className="h-3 w-3" />
-                                  )}
-                                </span>
-                              )}
-                            </div>
-                          </TableHead>
-                        ))}
-                      </TableRow>
-                    </TableHeader>
-                    <TableBody>
-                      {paginatedData.length === 0 ? (
-                        <TableRow>
-                          <TableCell colSpan={columns.length} className="text-center py-8">
-                            <div className="flex flex-col items-center justify-center text-muted-foreground">
-                              <Info className="h-8 w-8 mb-2" />
-                              <p>No se encontraron resultados para tu búsqueda</p>
-                              {searchTerm && (
-                                <Button variant="link" onClick={() => setSearchTerm("")} className="mt-2">
-                                  Borrar filtro
-                                </Button>
-                              )}
-                            </div>
-                          </TableCell>
-                        </TableRow>
-                      ) : (
-                        paginatedData.map((row, rowIndex) => (
-                          <TableRow key={`row-${rowIndex}`} className="hover:bg-secondary/20 transition-colors">
-                            {columns.map((column) => (
-                              <TableCell key={`cell-${rowIndex}-${column}`} className="py-2">
-                                {row[column] !== undefined && row[column] !== null ? row[column] : "-"}
-                              </TableCell>
-                            ))}
-                          </TableRow>
-                        ))
-                      )}
-                    </TableBody>
-                  </Table>
-                </div>
-              </div>
-
-              <div className="flex flex-wrap items-center justify-between gap-4 mt-4">
-                <div className="flex items-center gap-2">
-                  <p className="text-sm text-muted-foreground whitespace-nowrap">
-                    Mostrando {filteredData.length > 0 ? (currentPage - 1) * rowsPerPage + 1 : 0} a{" "}
-                    {Math.min(currentPage * rowsPerPage, filteredData.length)} de {filteredData.length} registros
-                  </p>
-                  <Select
-                    value={rowsPerPage.toString()}
-                    onValueChange={(value) => {
-                      setRowsPerPage(Number(value))
+                {filterColumn && filterColumn !== "none" && (
+                  <Input
+                    placeholder={`Filtrar ${filterColumn}...`}
+                    value={filterValue}
+                    onChange={(e) => {
+                      setFilterValue(e.target.value)
                       setCurrentPage(1)
                     }}
-                  >
-                    <SelectTrigger className="w-[80px] border-accent-soft">
-                      <SelectValue placeholder="10" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="10">10</SelectItem>
-                      <SelectItem value="25">25</SelectItem>
-                      <SelectItem value="50">50</SelectItem>
-                      <SelectItem value="100">100</SelectItem>
-                    </SelectContent>
-                  </Select>
-                </div>
+                  />
+                )}
 
-                <div className="flex items-center gap-1 ml-auto">
-                  <Button
-                    variant="outline"
-                    size="icon"
-                    onClick={() => setCurrentPage(1)}
-                    disabled={currentPage === 1}
-                    className="h-8 w-8"
-                  >
-                    <ChevronLeft className="h-4 w-4" />
-                    <ChevronLeft className="h-4 w-4 -ml-2" />
-                  </Button>
-                  <Button
-                    variant="outline"
-                    size="icon"
-                    onClick={() => setCurrentPage((prev) => Math.max(prev - 1, 1))}
-                    disabled={currentPage === 1}
-                    className="h-8 w-8"
-                  >
-                    <ChevronLeft className="h-4 w-4" />
-                  </Button>
-                  <span className="text-sm px-2">
-                    Página {currentPage} de {totalPages || 1}
-                  </span>
-                  <Button
-                    variant="outline"
-                    size="icon"
-                    onClick={() => setCurrentPage((prev) => Math.min(prev + 1, totalPages))}
-                    disabled={currentPage === totalPages || totalPages === 0}
-                    className="h-8 w-8"
-                  >
-                    <ChevronRight className="h-4 w-4" />
-                  </Button>
-                  <Button
-                    variant="outline"
-                    size="icon"
-                    onClick={() => setCurrentPage(totalPages)}
-                    disabled={currentPage === totalPages || totalPages === 0}
-                    className="h-8 w-8"
-                  >
-                    <ChevronRight className="h-4 w-4" />
-                    <ChevronRight className="h-4 w-4 -ml-2" />
-                  </Button>
-                </div>
-              </div>
-            </CardContent>
-          </CardSpotlight>
-        </TabsContent>
-
-        <TabsContent value="stats">
-          <CardSpotlight>
-            <CardHeader className="bg-secondary-soft rounded-t-lg">
-              <CardTitle className="text-primary">Estadísticas por Partido/Coalición</CardTitle>
-              <CardDescription>Selecciona un partido para ver sus estadísticas</CardDescription>
-            </CardHeader>
-            <CardContent>
-              <div className="flex items-center space-x-2 mb-6">
-                <TooltipProvider>
-                  <Tooltip>
-                    <TooltipTrigger asChild>
-                      <div>
-                        <Select value={selectedParty || ""} onValueChange={setSelectedParty}>
-                          <SelectTrigger className="w-[250px] border-accent-soft">
-                            <SelectValue placeholder="Seleccionar partido/coalición" />
-                          </SelectTrigger>
-                          <SelectContent>
-                            {parties.map((party) => (
-                              <SelectItem key={party} value={party}>
-                                {party}
-                              </SelectItem>
-                            ))}
-                          </SelectContent>
-                        </Select>
-                      </div>
-                    </TooltipTrigger>
-                    <TooltipContent>
-                      <p>Selecciona un partido o coalición para ver sus estadísticas detalladas</p>
-                    </TooltipContent>
-                  </Tooltip>
-                </TooltipProvider>
+                <Select value={pageSize.toString()} onValueChange={(value) => {
+                  setPageSize(Number(value))
+                  setCurrentPage(1)
+                }}>
+                  <SelectTrigger>
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="10">10 por página</SelectItem>
+                    <SelectItem value="25">25 por página</SelectItem>
+                    <SelectItem value="50">50 por página</SelectItem>
+                    <SelectItem value="100">100 por página</SelectItem>
+                  </SelectContent>
+                </Select>
               </div>
 
-              {selectedParty && columnStats ? (
-                <motion.div
-                  className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4"
-                  initial={{ opacity: 0, y: 20 }}
-                  animate={{ opacity: 1, y: 0 }}
-                  transition={{ duration: 0.3 }}
-                >
-                  <CardSpotlight containerClassName="h-full">
-                    <StatCard
-                      title="Total de Votos"
-                      value={columnStats.sum.toLocaleString()}
-                      description={`Para ${selectedParty}`}
-                      className="border-0 h-full"
-                    />
-                  </CardSpotlight>
+              {/* Información y controles */}
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-4">
+                  <Badge variant="outline">
+                    {processedData.length.toLocaleString()} de {data.length.toLocaleString()} registros
+                  </Badge>
+                  {(searchTerm || (filterColumn && filterColumn !== "none")) && (
+                    <Badge variant="secondary">Filtros activos</Badge>
+                  )}
+                </div>
+                <Button onClick={exportToCSV} variant="outline" size="sm">
+                  <Download className="h-4 w-4 mr-2" />
+                  Exportar CSV
+                </Button>
+              </div>
 
-                  <CardSpotlight containerClassName="h-full">
-                    <StatCard
-                      title="Promedio por Sección"
-                      value={columnStats.avg.toFixed(2)}
-                      description="Votos promedio por sección"
-                      className="border-0 h-full"
-                    />
-                  </CardSpotlight>
+              {/* Tabla de datos */}
+              <div className="border rounded-lg overflow-hidden">
+                <div className="overflow-x-auto max-h-[600px]">
+                  <table className="w-full border-collapse">
+                    <thead className="sticky top-0 bg-muted/50 z-10">
+                      <tr>
+                        {Object.keys(data[0] || {}).map(column => (
+                          <th
+                            key={column}
+                            className="p-3 text-left text-xs font-medium text-muted-foreground border-b cursor-pointer hover:bg-muted/70"
+                            onClick={() => handleSort(column)}
+                          >
+                            <div className="flex items-center gap-2">
+                              <span>{column}</span>
+                              {MEXICAN_PARTIES.includes(column.toUpperCase()) && (
+                                <Badge variant="outline" className="text-xs">Partido</Badge>
+                              )}
+                              {column.toUpperCase() === 'LISTA_NOMINAL' && (
+                                <Badge variant="secondary" className="text-xs">Lista</Badge>
+                              )}
+                              {sortColumn === column && (
+                                sortDirection === "asc" ?
+                                  <SortAsc className="h-3 w-3" /> :
+                                  <SortDesc className="h-3 w-3" />
+                              )}
+                            </div>
+                          </th>
+                        ))}
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {paginatedData.map((row, index) => (
+                        <tr key={index} className="border-b hover:bg-muted/30 transition-colors">
+                          {Object.entries(row).map(([column, value], cellIndex) => (
+                            <td key={cellIndex} className="p-3 text-sm border-r">
+                              {typeof value === 'number' ? value.toLocaleString() : String(value || '')}
+                            </td>
+                          ))}
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
 
-                  <CardSpotlight containerClassName="h-full">
-                    <StatCard
-                      title="Mediana"
-                      value={columnStats.median.toFixed(2)}
-                      description="Valor central de la distribución"
-                      className="border-0 h-full"
-                    />
-                  </CardSpotlight>
-
-                  <CardSpotlight containerClassName="h-full">
-                    <StatCard
-                      title="Secciones con Datos"
-                      value={columnStats.count.toLocaleString()}
-                      description={`De ${data.length} secciones totales`}
-                      className="border-0 h-full"
-                    />
-                  </CardSpotlight>
-
-                  <CardSpotlight containerClassName="h-full">
-                    <StatCard
-                      title="Valor Máximo"
-                      value={columnStats.max.toLocaleString()}
-                      description={`Sección: ${columnStats.maxSection}`}
-                      className="border-0 h-full"
-                    />
-                  </CardSpotlight>
-
-                  <CardSpotlight containerClassName="h-full">
-                    <StatCard
-                      title="Valor Mínimo"
-                      value={columnStats.min.toLocaleString()}
-                      description={`Sección: ${columnStats.minSection}`}
-                      className="border-0 h-full"
-                    />
-                  </CardSpotlight>
-                </motion.div>
-              ) : (
-                <div className="text-center py-16 text-muted-foreground">
-                  <Info className="h-12 w-12 mx-auto mb-4 opacity-20" />
-                  <p className="text-lg">Selecciona un partido o coalición para ver sus estadísticas</p>
-                  <p className="text-sm mt-2 max-w-md mx-auto">
-                    Las estadísticas te permitirán entender mejor la distribución de votos por sección
-                  </p>
+              {/* Paginación */}
+              {totalPages > 1 && (
+                <div className="flex items-center justify-between">
+                  <div className="text-sm text-muted-foreground">
+                    Página {currentPage} de {totalPages}
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => setCurrentPage(Math.max(1, currentPage - 1))}
+                      disabled={currentPage === 1}
+                    >
+                      Anterior
+                    </Button>
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => setCurrentPage(Math.min(totalPages, currentPage + 1))}
+                      disabled={currentPage === totalPages}
+                    >
+                      Siguiente
+                    </Button>
+                  </div>
                 </div>
               )}
-            </CardContent>
-          </CardSpotlight>
-        </TabsContent>
-      </Tabs>
+            </TabsContent>
+
+            <TabsContent value="analysis" className="space-y-4">
+              <div className="grid gap-4">
+                {columnAnalysis.filter(col => col.type === 'party').map(party => (
+                  <Card key={party.column}>
+                    <CardHeader>
+                      <CardTitle className="text-lg flex items-center justify-between">
+                        <span>{party.column}</span>
+                        <div className="flex gap-2">
+                          <Badge variant="default">Partido</Badge>
+                          {party.percentageOfTotal && (
+                            <Badge variant="outline">
+                              {party.percentageOfTotal.toFixed(1)}% del total
+                            </Badge>
+                          )}
+                        </div>
+                      </CardTitle>
+                    </CardHeader>
+                    <CardContent>
+                      <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-4">
+                        <div className="text-center p-3 bg-blue-50 rounded">
+                          <div className="font-bold text-lg">{(party.sum || 0).toLocaleString()}</div>
+                          <div className="text-sm text-muted-foreground">Total de votos</div>
+                        </div>
+                        <div className="text-center p-3 bg-green-50 rounded">
+                          <div className="font-bold text-lg">{(party.avg || 0).toFixed(0).toLocaleString()}</div>
+                          <div className="text-sm text-muted-foreground">Promedio por sección</div>
+                        </div>
+                        <div className="text-center p-3 bg-yellow-50 rounded">
+                          <div className="font-bold text-lg">{party.max?.toLocaleString() || 0}</div>
+                          <div className="text-sm text-muted-foreground">Máximo en sección</div>
+                        </div>
+                        <div className="text-center p-3 bg-purple-50 rounded">
+                          <div className="font-bold text-lg">{party.completeness.toFixed(1)}%</div>
+                          <div className="text-sm text-muted-foreground">Completitud</div>
+                        </div>
+                      </div>
+                    </CardContent>
+                  </Card>
+                ))}
+              </div>
+            </TabsContent>
+
+            <TabsContent value="summary" className="space-y-4">
+              {electoralSummary && (
+                <div className="space-y-6">
+                  {/* Estadísticas generales */}
+                  <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+                    <Card>
+                      <CardContent className="p-4 text-center">
+                        <div className="text-2xl font-bold text-blue-600">
+                          {electoralSummary.totalVotes.toLocaleString()}
+                        </div>
+                        <div className="text-sm text-muted-foreground">Total de Votos</div>
+                      </CardContent>
+                    </Card>
+                    <Card>
+                      <CardContent className="p-4 text-center">
+                        <div className="text-2xl font-bold text-green-600">
+                          {electoralSummary.totalListaNominal.toLocaleString()}
+                        </div>
+                        <div className="text-sm text-muted-foreground">Lista Nominal</div>
+                      </CardContent>
+                    </Card>
+                    <Card>
+                      <CardContent className="p-4 text-center">
+                        <div className="text-2xl font-bold text-purple-600">
+                          {electoralSummary.participation.toFixed(1)}%
+                        </div>
+                        <div className="text-sm text-muted-foreground">Participación</div>
+                      </CardContent>
+                    </Card>
+                    <Card>
+                      <CardContent className="p-4 text-center">
+                        <div className="text-2xl font-bold text-orange-600">
+                          {electoralSummary.sections.toLocaleString()}
+                        </div>
+                        <div className="text-sm text-muted-foreground">Secciones</div>
+                      </CardContent>
+                    </Card>
+                  </div>
+
+                  {/* Resultados por partido */}
+                  <Card>
+                    <CardHeader>
+                      <CardTitle>Resultados por Partido Político</CardTitle>
+                    </CardHeader>
+                    <CardContent>
+                      <div className="space-y-3">
+                        {electoralSummary.partyResults.map((party, index) => (
+                          <div key={party.name} className="flex items-center justify-between p-3 border rounded-lg">
+                            <div className="flex items-center gap-3">
+                              <Badge variant={index < 3 ? "default" : "secondary"}>
+                                #{index + 1}
+                              </Badge>
+                              <span className="font-medium">{party.name}</span>
+                            </div>
+                            <div className="text-right">
+                              <div className="font-bold">{party.votes.toLocaleString()}</div>
+                              <div className="text-sm text-muted-foreground">
+                                {party.percentage.toFixed(2)}%
+                              </div>
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    </CardContent>
+                  </Card>
+
+                  {/* Cobertura geográfica */}
+                  <Card>
+                    <CardHeader>
+                      <CardTitle>Cobertura Geográfica</CardTitle>
+                    </CardHeader>
+                    <CardContent>
+                      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                        <div className="text-center p-4 bg-muted/30 rounded">
+                          <div className="text-2xl font-bold">{electoralSummary.sections}</div>
+                          <div className="text-sm text-muted-foreground">Secciones Electorales</div>
+                        </div>
+                        <div className="text-center p-4 bg-muted/30 rounded">
+                          <div className="text-2xl font-bold">{electoralSummary.municipalities}</div>
+                          <div className="text-sm text-muted-foreground">Municipios</div>
+                        </div>
+                        <div className="text-center p-4 bg-muted/30 rounded">
+                          <div className="text-2xl font-bold">{electoralSummary.districts}</div>
+                          <div className="text-sm text-muted-foreground">Distritos</div>
+                        </div>
+                      </div>
+                    </CardContent>
+                  </Card>
+                </div>
+              )}
+            </TabsContent>
+          </Tabs>
+        </CardContent>
+      </Card>
     </div>
   )
 }
